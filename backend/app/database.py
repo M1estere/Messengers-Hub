@@ -55,3 +55,15 @@ async def _migrate_missing_columns():
                 "ALTER TABLE messages ADD COLUMN is_read BOOLEAN"
             )
             await conn.exec_driver_sql("UPDATE messages SET is_read = 1")
+        if "media_type" not in existing:
+            await conn.exec_driver_sql(
+                "ALTER TABLE messages ADD COLUMN media_type VARCHAR(50)"
+            )
+        if "media_path" not in existing:
+            await conn.exec_driver_sql(
+                "ALTER TABLE messages ADD COLUMN media_path VARCHAR(500)"
+            )
+        if "media_name" not in existing:
+            await conn.exec_driver_sql(
+                "ALTER TABLE messages ADD COLUMN media_name VARCHAR(255)"
+            )

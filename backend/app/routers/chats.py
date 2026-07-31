@@ -27,7 +27,7 @@ async def list_chats(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(Chat, Message)
         .outerjoin(Message, Message.id == last_message_id)
-        .order_by(Chat.created_at.desc())
+        .order_by(Message.created_at.desc().nullslast(), Chat.created_at.desc())
     )
     return [
         ChatOut(

@@ -17,6 +17,13 @@ class Message(Base):
     sender_name: Mapped[str] = mapped_column(String(255), nullable=True)
     is_from_me: Mapped[bool] = mapped_column(Boolean, default=False)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    media_type: Mapped[str] = mapped_column(String(50), nullable=True)  # image | document
+    media_path: Mapped[str] = mapped_column(String(500), nullable=True)
+    media_name: Mapped[str] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     chat: Mapped["Chat"] = relationship(back_populates="messages")
+
+    @property
+    def media_url(self) -> str | None:
+        return f"/messages/{self.id}/media" if self.media_path else None

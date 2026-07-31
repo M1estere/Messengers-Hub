@@ -39,6 +39,26 @@ class TelegramService:
     async def send_message(self, chat_id: int | str, text: str) -> dict:
         return await self._call("sendMessage", chat_id=chat_id, text=text)
 
+    async def _send_file(self, method: str, file_field: str, chat_id, content: bytes, filename: str, content_type: str, caption: str) -> dict:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{self.base_url}/{method}",
+                data={"chat_id": chat_id, "caption": caption},
+                files={file_field: (filename, content, content_type)},
+                timeout=120,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            if not data.get("ok"):
+                raise RuntimeError(data.get("description", "telegram api error"))
+            return data["result"]
+
+    async def send_photo(self, chat_id: int | str, content: bytes, filename: str, content_type: str, caption: str = "") -> dict:
+        return await self._send_file("sendPhoto", "photo", chat_id, content, filename, content_type, caption)
+
+    async def send_document(self, chat_id: int | str, content: bytes, filename: str, content_type: str, caption: str = "") -> dict:
+        return await self._send_file("sendDocument", "document", chat_id, content, filename, content_type, caption)
+
     async def get_updates(self, offset: int, timeout: int = 30) -> list:
         return await self._call("getUpdates", offset=offset, timeout=timeout)
 
