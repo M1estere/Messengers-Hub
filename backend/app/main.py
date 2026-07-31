@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import init_db
 from app.routers import webhooks, chats, messages, ws
+from app.services.max import max_poller
 from app.services.telegram import telegram_poller, avatar_fetch_loop
 
 logging.basicConfig(level=logging.INFO)
@@ -16,9 +17,11 @@ logging.basicConfig(level=logging.INFO)
 async def lifespan(app: FastAPI):
     await init_db()
     poller = asyncio.create_task(telegram_poller())
+    max_poller_task = asyncio.create_task(max_poller())
     avatar_loader = asyncio.create_task(avatar_fetch_loop())
     yield
     poller.cancel()
+    max_poller_task.cancel()
     avatar_loader.cancel()
 
 

@@ -17,6 +17,7 @@ function App() {
   const [chats, setChats] = useState([])
   const [error, setError] = useState(null)
   const [selectedChat, setSelectedChat] = useState(null)
+  const [menu, setMenu] = useState(null)
 
   const refreshChats = () => {
     fetch('/chats')
@@ -32,12 +33,38 @@ function App() {
       .catch((err) => setError(err.message))
   }, [])
 
+  const deleteChat = async (id) => {
+    if (!window.confirm('Удалить чат?')) return
+    try {
+      await fetch(`/chats/${id}`, { method: 'DELETE' })
+    } catch (e) {}
+    setMenu(null)
+    if (selectedChat && selectedChat.id === id) setSelectedChat(null)
+    refreshChats()
+  }
+
+  const togglePin = async (chat) => {
+    setMenu(null)
+    try {
+      await fetch(`/chats/${chat.id}/pin?pinned=${!chat.is_pinned}`, { method: 'PATCH' })
+    } catch (e) {}
+    refreshChats()
+  }
+
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape') setSelectedChat(null)
+      if (e.key === 'Escape') {
+        setSelectedChat(null)
+        setMenu(null)
+      }
     }
+    const onClick = () => setMenu(null)
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('click', onClick)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('click', onClick)
+    }
   }, [])
 
   if (error) {
@@ -54,13 +81,18 @@ function App() {
 
               <div style={{ width: '100%' }}>
                   {chats.map((chat) => (
-                      <div key={chat.id} id={`${chat.platform}_chat_${chat.id}`} onClick={() => setSelectedChat(chat)} className={selectedChat && selectedChat.id === chat.id ? 'chat_block selected' : 'chat_block'}>
+                      <div key={chat.id} id={`${chat.platform}_chat_${chat.id}`} onClick={() => setSelectedChat(chat)} onContextMenu={(e) => { e.preventDefault(); setMenu({ chat, x: e.clientX, y: e.clientY }) }} className={selectedChat && selectedChat.id === chat.id ? 'chat_block selected' : 'chat_block'}>
                           <Avatar chat={chat} />
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexDirection: 'column', width: '100%' }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', textAlign: 'start' }}>
-                                  <div>
-                                      <span>{chat.username}</span>
-                                  </div>
+                                   <div>
+                                       {chat.is_pinned && (
+                                           <svg width="12" height="12" viewBox="0 0 24 24" fill="#4da3ff" style={{ marginRight: 4 }}>
+                                               <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5v6l1 1 1-1v-6h5v-2z" />
+                                           </svg>
+                                       )}
+                                       {(chat.username && chat.username.length > 0) ? chat.username : chat.first_name}
+                                   </div>
 
                                   <div>
                                       <span style={{ color: '#888', fontSize: 12, marginLeft: 6 }}>
@@ -81,6 +113,51 @@ function App() {
                   ))}
               </div>
           </div>
+
+          {menu && (
+              <div
+                  onMouseDown={(e) => e.stopPropagation()}
+                  style={{
+                      position: 'fixed',
+                      left: menu.x,
+                      top: menu.y,
+                      zIndex: 1000,
+                      background: '#fff',
+                      border: '1px solid #ccc',
+                      borderRadius: 6,
+                      boxShadow: '0 2px 8px rgba(0,0,0,.2)',
+                      minWidth: 160,
+                      padding: 4,
+                  }}
+              >
+                  <div
+                      onClick={() => togglePin(menu.chat)}
+                      style={{
+                          padding: '8px 12px',
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                          color: '#333',
+                          fontSize: 14,
+                          textAlign: 'start',
+                      }}
+                  >
+                      {menu.chat.is_pinned ? 'Открепить чат' : 'Закрепить чат'}
+                  </div>
+                  <div
+                      onClick={() => deleteChat(menu.chat.id)}
+                      style={{
+                          padding: '8px 12px',
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                          color: '#d33',
+                          fontSize: 14,
+                          textAlign: 'start',
+                      }}
+                  >
+                      Удалить чат
+                  </div>
+              </div>
+          )}
 
           <div style={{ width: '70vw', height: '100%', borderLeft: '1px solid darkgray' }}>
               {selectedChat && <ChatView chat={selectedChat} onMessageSent={refreshChats} />}
@@ -215,6 +292,11 @@ function ChatView({ chat, onMessageSent }) {
               </div>
             )}
             {m.text && <div>{m.text}</div>}
+            {m.created_at && (
+              <div style={{ fontSize: 11, lineHeight: 1, textAlign: 'right', opacity: 0.75, marginTop: 3, color: 'inherit' }}>
+                {fmtTime(m.created_at)}
+              </div>
+            )}
           </div>
         ))}
       </div>

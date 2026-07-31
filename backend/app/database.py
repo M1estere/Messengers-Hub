@@ -38,6 +38,10 @@ async def _migrate_missing_columns():
             await conn.exec_driver_sql(
                 "ALTER TABLE chats ADD COLUMN first_name VARCHAR(255)"
             )
+        if "is_pinned" not in existing:
+            await conn.exec_driver_sql(
+                "ALTER TABLE chats ADD COLUMN is_pinned BOOLEAN DEFAULT 0"
+            )
         await conn.exec_driver_sql(
             "UPDATE chats SET title = REPLACE(title, ' (@' || username || ')', '') "
             "WHERE username IS NOT NULL AND title LIKE '% (@' || username || ')'"
@@ -66,4 +70,8 @@ async def _migrate_missing_columns():
         if "media_name" not in existing:
             await conn.exec_driver_sql(
                 "ALTER TABLE messages ADD COLUMN media_name VARCHAR(255)"
+            )
+        if "media_data" not in existing:
+            await conn.exec_driver_sql(
+                "ALTER TABLE messages ADD COLUMN media_data BLOB"
             )

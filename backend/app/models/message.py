@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import String, Integer, ForeignKey, Text, DateTime, Boolean, func, Enum
+from sqlalchemy import String, Integer, ForeignKey, Text, DateTime, Boolean, func, Enum, LargeBinary
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -20,10 +20,11 @@ class Message(Base):
     media_type: Mapped[str] = mapped_column(String(50), nullable=True)  # image | document
     media_path: Mapped[str] = mapped_column(String(500), nullable=True)
     media_name: Mapped[str] = mapped_column(String(255), nullable=True)
+    media_data: Mapped[bytes] = mapped_column(LargeBinary, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     chat: Mapped["Chat"] = relationship(back_populates="messages")
 
     @property
     def media_url(self) -> str | None:
-        return f"/messages/{self.id}/media" if self.media_path else None
+        return f"/messages/{self.id}/media" if (self.media_path or self.media_data) else None

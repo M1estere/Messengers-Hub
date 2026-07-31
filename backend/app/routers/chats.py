@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi import Response
 from fastapi.responses import FileResponse
 from sqlalchemy import select
@@ -27,7 +27,11 @@ async def list_chats(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(Chat, Message)
         .outerjoin(Message, Message.id == last_message_id)
-        .order_by(Message.created_at.desc().nullslast(), Chat.created_at.desc())
+        .order_by(
+            Chat.is_pinned.desc(),
+            Message.created_at.desc().nullslast(),
+            Chat.created_at.desc(),
+        )
     )
     return [
         ChatOut(
@@ -39,10 +43,37 @@ async def list_chats(db: AsyncSession = Depends(get_db)):
             username=chat.username,
             type=chat.type,
             avatar_url=f"/chats/{chat.id}/avatar",
+            is_pinned=chat.is_pinned,
             last_message=MessageOut.model_validate(last_message) if last_message else None,
         )
         for chat, last_message in result.all()
     ]
+
+
+@router.patch("/{chat_id}/pin")
+async def set_pinned(chat_id: int, pinned: bool = False, db: AsyncSession = Depends(get_db)):
+    chat = await db.get(Chat, chat_id)
+    if chat is None:
+        raise HTTPException(404, "чат не найден")
+    chat.is_pinned = pinned
+    await db.commit()
+    return {"ok": True, "id": chat.id, "is_pinned": chat.is_pinned}
+
+
+@router.delete("/{chat_id}")
+async def delete_chat(chat_id: int, db: AsyncSession = Depends(get_db)):
+    chat = await db.get(Chat, chat_id)
+    if chat is None:
+        raise HTTPException(404, "чат не найден")
+    avatar_path = chat.avatar_file_path
+    await db.delete(chat)
+    await db.commit()
+    if avatar_path and Path(avatar_path).exists():
+        try:
+            Path(avatar_path).unlink()
+        except OSError:
+            pass
+    return {"ok": True}
 
 
 @router.get("/{chat_id}/avatar")
