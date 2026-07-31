@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -5,12 +7,19 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import init_db
 from app.routers import webhooks, chats, messages, ws
+from app.services.telegram import telegram_poller, avatar_fetch_loop
+
+logging.basicConfig(level=logging.INFO)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    poller = asyncio.create_task(telegram_poller())
+    avatar_loader = asyncio.create_task(avatar_fetch_loop())
     yield
+    poller.cancel()
+    avatar_loader.cancel()
 
 
 app = FastAPI(title="ConnectHub", lifespan=lifespan)
