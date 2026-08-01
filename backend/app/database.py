@@ -24,6 +24,14 @@ async def init_db():
 
 async def _migrate_missing_columns():
     async with engine.begin() as conn:
+        cols = await conn.exec_driver_sql("PRAGMA table_info(accounts)")
+        existing = {row[1] for row in cols}
+        if "bot_id" not in existing:
+            await conn.exec_driver_sql(
+                "ALTER TABLE accounts ADD COLUMN bot_id VARCHAR(255)"
+            )
+
+    async with engine.begin() as conn:
         cols = await conn.exec_driver_sql("PRAGMA table_info(chats)")
         existing = {row[1] for row in cols}
         if "avatar_file_path" not in existing:
@@ -74,4 +82,8 @@ async def _migrate_missing_columns():
         if "media_data" not in existing:
             await conn.exec_driver_sql(
                 "ALTER TABLE messages ADD COLUMN media_data BLOB"
+            )
+        if "reply_to_id" not in existing:
+            await conn.exec_driver_sql(
+                "ALTER TABLE messages ADD COLUMN reply_to_id INTEGER"
             )

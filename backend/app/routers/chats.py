@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import Chat, Message
+from app.models import Chat, Message, Platform
 from app.schemas.chat import ChatOut, MessageOut
 from app.services.telegram import load_avatar
 
@@ -83,7 +83,8 @@ async def get_avatar(chat_id: int, db: AsyncSession = Depends(get_db)):
         return Response(status_code=404)
 
     if not chat.avatar_file_path or not Path(chat.avatar_file_path).exists():
-        await load_avatar(chat, db)
+        if chat.platform == Platform.TELEGRAM:
+            await load_avatar(chat, db)
 
     if chat.avatar_file_path and Path(chat.avatar_file_path).exists():
         return FileResponse(chat.avatar_file_path, media_type="image/jpeg")

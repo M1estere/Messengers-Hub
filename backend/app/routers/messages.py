@@ -37,14 +37,23 @@ async def send_message(
     db: AsyncSession = Depends(get_db),
     text: str = Form(""),
     file: UploadFile | None = File(None),
+    reply_to_id: int | None = Form(None),
 ):
     chat = await db.get(Chat, chat_id)
     if chat is None:
         raise HTTPException(404, "чат не найден")
 
+    reply_to_message = None
+    if reply_to_id is not None:
+        reply_to_message = await db.get(Message, reply_to_id)
+        if reply_to_message is None or reply_to_message.chat_id != chat.id:
+            raise HTTPException(400, "сообщение для ответа не найдено в этом чате")
+    reply_external_id = reply_to_message.external_id or None if reply_to_message else None
+
     media_type = None
     media_path = None
     media_name = None
+    external_id = ""
 
     if file and file.filename:
         content = await file.read()
@@ -54,31 +63,40 @@ async def send_message(
 
         if chat.platform == "telegram":
             if media_type == "image":
-                await telegram.send_photo(chat.external_id, content, media_name, content_type, text)
+                result = await telegram.send_photo(chat.external_id, content, media_name, content_type, text, reply_external_id)
             else:
-                await telegram.send_document(chat.external_id, content, media_name, content_type, text)
+                result = await telegram.send_document(chat.external_id, content, media_name, content_type, text, reply_external_id)
+            external_id = str(result.get("message_id", ""))
         elif chat.platform == "max":
             upload_type = "image" if media_type == "image" else "file"
-            await max_service.send_media(
-                int(chat.external_id), upload_type, content, media_name, text
+            result = await max_service.send_media(
+                int(chat.external_id), upload_type, content, media_name, text,
+                link={"type": "reply", "message_id": reply_external_id} if reply_external_id else None,
             )
+            external_id = _max_message_id(result)
         else:
             raise HTTPException(501, f"отправка медиа на платформу {chat.platform} ещё не поддерживается")
     else:
         if chat.platform == "telegram":
-            await telegram.send_message(chat.external_id, text)
+            result = await telegram.send_message(chat.external_id, text, reply_external_id)
+            external_id = str(result.get("message_id", ""))
         elif chat.platform == "max":
-            await max_service.send_message(text, chat_id=int(chat.external_id))
+            result = await max_service.send_message(
+                text, chat_id=int(chat.external_id),
+                link={"type": "reply", "message_id": reply_external_id} if reply_external_id else None,
+            )
+            external_id = _max_message_id(result)
         else:
             raise HTTPException(501, f"платформа {chat.platform} ещё не поддерживается")
 
     message = Message(
         chat_id=chat.id,
         platform=chat.platform,
-        external_id="",
+        external_id=external_id,
         text=text or None,
         sender_name="",
         is_from_me=True,
+        reply_to_id=reply_to_id,
         media_type=media_type,
         media_path=media_path,
         media_name=media_name,
@@ -88,6 +106,41 @@ async def send_message(
     await db.commit()
     await db.refresh(message)
     return message
+
+
+def _max_message_id(result: dict) -> str:
+    msg = result.get("message") or {}
+    body = msg.get("body") or {}
+    return str(
+        body.get("mid")
+        or msg.get("mid")
+        or msg.get("message_id")
+        or msg.get("id")
+        or ""
+    )
+
+
+@router.delete("/{message_id}")
+async def delete_message(message_id: int, db: AsyncSession = Depends(get_db)):
+    message = await db.get(Message, message_id)
+    if message is None:
+        raise HTTPException(404, "сообщение не найдено")
+    if not message.is_from_me:
+        raise HTTPException(403, "можно удалять только свои сообщения")
+    chat = await db.get(Chat, message.chat_id)
+    if chat is None:
+        raise HTTPException(404, "чат не найден")
+    if message.external_id:
+        try:
+            if chat.platform == "telegram":
+                await telegram.delete_message(chat.external_id, message.external_id)
+            elif chat.platform == "max":
+                await max_service.delete_message(message.external_id)
+        except Exception:
+            pass
+    await db.delete(message)
+    await db.commit()
+    return {"ok": True}
 
 
 @router.get("/{message_id}/media")

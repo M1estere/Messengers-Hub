@@ -36,6 +36,9 @@ class MaxService:
     async def get_me(self) -> dict:
         return await self._call("GET", "me")
 
+    async def get_chat(self, chat_id: int) -> dict:
+        return await self._call("GET", f"chats/{chat_id}")
+
     async def get_updates(self, marker: int | None = None, timeout: int = 30, types: str | None = None) -> dict:
         params = {"timeout": timeout, "limit": 100}
         if marker is not None:
@@ -50,6 +53,7 @@ class MaxService:
         user_id: int | None = None,
         chat_id: int | None = None,
         attachments: list[dict] | None = None,
+        link: dict | None = None,
     ) -> dict:
         params = {}
         if user_id is not None:
@@ -59,7 +63,12 @@ class MaxService:
         body: dict = {"text": text}
         if attachments:
             body["attachments"] = attachments
+        if link:
+            body["link"] = link
         return await self._call("POST", "messages", params=params, json=body)
+
+    async def delete_message(self, message_id: str | int) -> dict:
+        return await self._call("DELETE", "messages", params={"message_id": message_id})
 
     async def upload_file(self, upload_type: str, content: bytes, filename: str) -> str:
         data = await self._call("POST", f"uploads?type={upload_type}")
@@ -95,6 +104,7 @@ class MaxService:
         content: bytes,
         filename: str,
         text: str = "",
+        link: dict | None = None,
     ) -> dict:
         token = await self.upload_file(upload_type, content, filename)
         for attempt in range(4):
@@ -103,6 +113,7 @@ class MaxService:
                     text,
                     chat_id=chat_id,
                     attachments=[{"type": upload_type, "payload": {"token": token}}],
+                    link=link,
                 )
             except httpx.HTTPStatusError as exc:
                 resp_text = exc.response.text if exc.response is not None else ""
@@ -236,7 +247,34 @@ async def save_max_message(account: Account, message: dict):
         )
         if existing.scalar_one_or_none() is not None:
             return
-        session.add(Message(**kwargs))
+
+        reply_to_id = None
+        link = message.get("link")
+        if link and link.get("type") == "reply":
+            linked_body = link.get("message_body") or {}
+            linked_mid = str(linked_body.get("mid") or "")
+            if linked_mid:
+                target = await session.execute(
+                    select(Message).where(
+                        Message.chat_id == chat.id,
+                        Message.external_id == linked_mid,
+                    )
+                )
+                target_msg = target.scalar_one_or_none()
+                if target_msg is None:
+                    target_msg = Message(
+                        chat_id=chat.id,
+                        platform=Platform.MAX,
+                        external_id=linked_mid,
+                        text=linked_body.get("text"),
+                        sender_name=(link.get("sender") or {}).get("first_name") or "",
+                        is_from_me=False,
+                    )
+                    session.add(target_msg)
+                    await session.flush()
+                reply_to_id = target_msg.id
+
+        session.add(Message(**kwargs, reply_to_id=reply_to_id))
         await session.commit()
 
 

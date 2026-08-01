@@ -13,6 +13,7 @@ class MessageOut(BaseModel):
     sender_name: str | None
     is_from_me: bool
     is_read: bool = False
+    reply_to_id: int | None = None
     media_type: str | None = None
     media_path: str | None = None
     media_name: str | None = None

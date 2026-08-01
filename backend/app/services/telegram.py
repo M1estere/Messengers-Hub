@@ -36,14 +36,20 @@ class TelegramService:
     async def get_me(self) -> dict:
         return await self._call("getMe")
 
-    async def send_message(self, chat_id: int | str, text: str) -> dict:
-        return await self._call("sendMessage", chat_id=chat_id, text=text)
+    async def send_message(self, chat_id: int | str, text: str, reply_to_message_id: int | str | None = None) -> dict:
+        params: dict = {"chat_id": chat_id, "text": text}
+        if reply_to_message_id:
+            params["reply_parameters"] = {"message_id": reply_to_message_id}
+        return await self._call("sendMessage", **params)
 
-    async def _send_file(self, method: str, file_field: str, chat_id, content: bytes, filename: str, content_type: str, caption: str) -> dict:
+    async def _send_file(self, method: str, file_field: str, chat_id, content: bytes, filename: str, content_type: str, caption: str, reply_to_message_id: int | str | None = None) -> dict:
+        data: dict = {"chat_id": chat_id, "caption": caption}
+        if reply_to_message_id:
+            data["reply_parameters"] = {"message_id": reply_to_message_id}
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 f"{self.base_url}/{method}",
-                data={"chat_id": chat_id, "caption": caption},
+                data=data,
                 files={file_field: (filename, content, content_type)},
                 timeout=120,
             )
@@ -53,11 +59,14 @@ class TelegramService:
                 raise RuntimeError(data.get("description", "telegram api error"))
             return data["result"]
 
-    async def send_photo(self, chat_id: int | str, content: bytes, filename: str, content_type: str, caption: str = "") -> dict:
-        return await self._send_file("sendPhoto", "photo", chat_id, content, filename, content_type, caption)
+    async def send_photo(self, chat_id: int | str, content: bytes, filename: str, content_type: str, caption: str = "", reply_to_message_id: int | str | None = None) -> dict:
+        return await self._send_file("sendPhoto", "photo", chat_id, content, filename, content_type, caption, reply_to_message_id)
 
-    async def send_document(self, chat_id: int | str, content: bytes, filename: str, content_type: str, caption: str = "") -> dict:
-        return await self._send_file("sendDocument", "document", chat_id, content, filename, content_type, caption)
+    async def send_document(self, chat_id: int | str, content: bytes, filename: str, content_type: str, caption: str = "", reply_to_message_id: int | str | None = None) -> dict:
+        return await self._send_file("sendDocument", "document", chat_id, content, filename, content_type, caption, reply_to_message_id)
+
+    async def delete_message(self, chat_id: int | str, message_id: int | str) -> dict:
+        return await self._call("deleteMessage", chat_id=chat_id, message_id=message_id)
 
     async def get_updates(self, offset: int, timeout: int = 30) -> list:
         return await self._call("getUpdates", offset=offset, timeout=timeout)
@@ -129,14 +138,23 @@ async def get_or_create_account() -> Account | None:
                 platform=Platform.TELEGRAM,
                 bot_token=telegram.token,
                 bot_username=me.get("username"),
+                bot_id=str(me.get("id") or ""),
             )
             session.add(account)
             await session.commit()
             await session.refresh(account)
+        else:
+            if not account.bot_id:
+                try:
+                    me = await telegram.get_me()
+                    account.bot_id = str(me.get("id") or "")
+                    await session.commit()
+                except Exception:
+                    pass
         return account
 
 
-async def save_message(account: Account, chat_data: dict, message_data: dict):
+async def save_message(account: Account, chat_data: dict, message_data: dict, depth: int = 0):
     chat_external_id = str(chat_data["id"])
     message_external_id = str(message_data.get("message_id", ""))
 
@@ -189,6 +207,25 @@ async def save_message(account: Account, chat_data: dict, message_data: dict):
             or message_data.get("from", {}).get("username")
             or ""
         )
+        sender_id = (message_data.get("from") or {}).get("id")
+        is_from_me = bool(account.bot_id) and str(sender_id) == str(account.bot_id)
+
+        reply_to_id = None
+        reply_to = message_data.get("reply_to_message")
+        if reply_to and depth < 5 and reply_to.get("chat"):
+            reply_chat = reply_to["chat"]
+            reply_external_id = str(reply_to.get("message_id", ""))
+            if reply_external_id:
+                await save_message(account, reply_chat, reply_to, depth=depth + 1)
+                target = await session.execute(
+                    select(Message).where(
+                        Message.chat_id == chat.id,
+                        Message.external_id == reply_external_id,
+                    )
+                )
+                target_msg = target.scalar_one_or_none()
+                if target_msg is not None:
+                    reply_to_id = target_msg.id
 
         session.add(
             Message(
@@ -197,7 +234,8 @@ async def save_message(account: Account, chat_data: dict, message_data: dict):
                 external_id=message_external_id,
                 text=text,
                 sender_name=sender,
-                is_from_me=False,
+                is_from_me=is_from_me,
+                reply_to_id=reply_to_id,
             )
         )
         await session.commit()

@@ -17,6 +17,7 @@ class Message(Base):
     sender_name: Mapped[str] = mapped_column(String(255), nullable=True)
     is_from_me: Mapped[bool] = mapped_column(Boolean, default=False)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    reply_to_id: Mapped[int] = mapped_column(ForeignKey("messages.id"), nullable=True)
     media_type: Mapped[str] = mapped_column(String(50), nullable=True)  # image | document
     media_path: Mapped[str] = mapped_column(String(500), nullable=True)
     media_name: Mapped[str] = mapped_column(String(255), nullable=True)
