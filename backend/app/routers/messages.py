@@ -1,5 +1,6 @@
 import mimetypes
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response
@@ -144,13 +145,21 @@ async def delete_message(message_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/{message_id}/media")
-async def get_media(message_id: int, db: AsyncSession = Depends(get_db)):
+async def get_media(message_id: int, download: bool = False, db: AsyncSession = Depends(get_db)):
     message = await db.get(Message, message_id)
     if message is None:
         raise HTTPException(404, "сообщение не найдено")
+    filename = message.media_name
+    content_type = mimetypes.guess_type(filename or "")[0] or "application/octet-stream"
+    headers = {}
+    if download and filename:
+        ascii_name = filename.encode("ascii", "ignore").decode() or "file"
+        headers["Content-Disposition"] = (
+            f'attachment; filename="{ascii_name}"; '
+            f"filename*=UTF-8''{quote(filename)}"
+        )
     if message.media_data:
-        content_type = mimetypes.guess_type(message.media_name or "")[0] or "application/octet-stream"
-        return Response(content=message.media_data, media_type=content_type)
+        return Response(content=message.media_data, media_type=content_type, headers=headers)
     if message.media_path and Path(message.media_path).exists():
-        return FileResponse(message.media_path)
+        return FileResponse(message.media_path, media_type=content_type, headers=headers)
     raise HTTPException(404, "медиа не найдено")

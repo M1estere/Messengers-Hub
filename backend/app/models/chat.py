@@ -13,6 +13,7 @@ class Chat(Base):
     account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"))
     platform: Mapped[Platform] = mapped_column(Enum(Platform, native_enum=False), default=Platform.TELEGRAM)
     external_id: Mapped[str] = mapped_column(String(255))  # chat_id in TG/MAX
+    user_external_id: Mapped[str] = mapped_column(String(255), nullable=True)  # global user_id in MAX
     title: Mapped[str] = mapped_column(String(255), nullable=True)
     first_name: Mapped[str] = mapped_column(String(255), nullable=True)
     username: Mapped[str] = mapped_column(String(255), nullable=True)

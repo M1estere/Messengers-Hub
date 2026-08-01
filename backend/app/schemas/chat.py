@@ -27,6 +27,7 @@ class ChatOut(BaseModel):
     id: int
     platform: str
     external_id: str
+    user_external_id: str | None = None
     title: str | None
     first_name: str | None = None
     username: str | None = None

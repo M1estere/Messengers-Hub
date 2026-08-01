@@ -38,6 +38,7 @@ async def list_chats(db: AsyncSession = Depends(get_db)):
             id=chat.id,
             platform=chat.platform,
             external_id=chat.external_id,
+            user_external_id=chat.user_external_id,
             title=chat.title,
             first_name=chat.first_name,
             username=chat.username,

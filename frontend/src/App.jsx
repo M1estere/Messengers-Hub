@@ -200,8 +200,17 @@ function App() {
         </div>
       )}
 
-      <div className="chat-panel">
-        {selectedChat && <ChatView chat={selectedChat} onMessageSent={refreshChats} />}
+      <div className={selectedChat ? 'chat-panel open' : 'chat-panel'}>
+        {selectedChat && (
+          <ChatView
+            chat={selectedChat}
+            onMessageSent={refreshChats}
+            onBack={() => {
+              setSelectedChat(null)
+              localStorage.removeItem('selectedChatId')
+            }}
+          />
+        )}
       </div>
     </div>
   )
@@ -239,7 +248,7 @@ function Avatar({ chat }) {
   )
 }
 
-function ChatView({ chat, onMessageSent }) {
+function ChatView({ chat, onMessageSent, onBack }) {
   const [messages, setMessages] = useState([])
   const [text, setText] = useState('')
   const [file, setFile] = useState(null)
@@ -399,6 +408,16 @@ function ChatView({ chat, onMessageSent }) {
     highlightTimer.current = setTimeout(() => setHighlightId(null), 2000)
   }
 
+  const downloadMedia = (msg) => {
+    if (!msg?.media_url) return
+    const a = document.createElement('a')
+    a.href = `${msg.media_url}?download=1`
+    a.download = msg.media_name || 'file'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+  }
+
   const deleteMessage = async (id) => {
     if (!window.confirm('Удалить сообщение?')) return
     await fetch(`/messages/${id}`, { method: 'DELETE' })
@@ -425,9 +444,28 @@ function ChatView({ chat, onMessageSent }) {
   return (
     <div className="chat-view">
       <div className="chat-view-header">
+        <button className="chat-view-back" onClick={onBack} title="Назад">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
         <Avatar chat={chat} />
         <div className="chat-view-name-wrap">
-          <div className="chat-view-title">{chat.username || chat.title}</div>
+          <a
+            className="chat-view-title"
+            href={
+              chat.platform === 'max'
+                ? `max://user/${chat.user_external_id || chat.external_id}`
+                : chat.username
+                  ? `https://t.me/${chat.username}`
+                  : `tg://user?id=${chat.external_id}`
+            }
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Открыть профиль"
+          >
+            {chat.username || chat.title}
+          </a>
         </div>
       </div>
 
@@ -472,7 +510,11 @@ function ChatView({ chat, onMessageSent }) {
               />
             )}
             {m.media_type === 'document' && (
-              <div className="message-document">
+              <div
+                className="message-document"
+                title="Скачать"
+                onClick={() => downloadMedia(m)}
+              >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
                 </svg>

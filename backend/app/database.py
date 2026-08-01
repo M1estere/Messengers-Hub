@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy import select
 
 from app.config import settings
 
@@ -20,6 +21,37 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await _migrate_missing_columns()
+    await _backfill_max_user_ids()
+
+
+async def _backfill_max_user_ids():
+    try:
+        from app.models import Chat, Platform
+        from app.services.max import max_service
+
+        async with async_session() as session:
+            result = await session.execute(
+                select(Chat).where(
+                    Chat.platform == Platform.MAX,
+                    Chat.type == "private",
+                    Chat.user_external_id.is_(None),
+                )
+            )
+            for chat in result.scalars():
+                try:
+                    info = await max_service.get_chat(int(chat.external_id))
+                    user = (info or {}).get("dialog_with_user") or {}
+                    if user.get("user_id"):
+                        chat.user_external_id = str(user["user_id"])
+                        await session.commit()
+                except Exception as exc:
+                    from app.services.max import logger
+
+                    logger.debug("backfill user_id %s: %s", chat.external_id, exc)
+    except Exception as exc:
+        from app.services.max import logger
+
+        logger.warning("MAX user_id backfill: %s", exc)
 
 
 async def _migrate_missing_columns():
@@ -41,6 +73,10 @@ async def _migrate_missing_columns():
         if "username" not in existing:
             await conn.exec_driver_sql(
                 "ALTER TABLE chats ADD COLUMN username VARCHAR(255)"
+            )
+        if "user_external_id" not in existing:
+            await conn.exec_driver_sql(
+                "ALTER TABLE chats ADD COLUMN user_external_id VARCHAR(255)"
             )
         if "first_name" not in existing:
             await conn.exec_driver_sql(

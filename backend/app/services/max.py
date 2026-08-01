@@ -185,6 +185,7 @@ async def upsert_max_chat(
                 account_id=account.id,
                 platform=Platform.MAX,
                 external_id=str(chat_id),
+                user_external_id=str(user["user_id"]) if user.get("user_id") else None,
                 title=name,
                 first_name=first_name,
                 username=user.get("username"),
@@ -198,6 +199,8 @@ async def upsert_max_chat(
                 chat.first_name = first_name
             if chat.username is None and user.get("username"):
                 chat.username = user.get("username")
+            if chat.user_external_id is None and user.get("user_id"):
+                chat.user_external_id = str(user["user_id"])
             if chat_type and chat.type != type_:
                 chat.type = type_
             await session.commit()

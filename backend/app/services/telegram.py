@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import re
 from pathlib import Path
@@ -45,7 +46,7 @@ class TelegramService:
     async def _send_file(self, method: str, file_field: str, chat_id, content: bytes, filename: str, content_type: str, caption: str, reply_to_message_id: int | str | None = None) -> dict:
         data: dict = {"chat_id": chat_id, "caption": caption}
         if reply_to_message_id:
-            data["reply_parameters"] = {"message_id": reply_to_message_id}
+            data["reply_parameters"] = json.dumps({"message_id": reply_to_message_id})
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 f"{self.base_url}/{method}",
