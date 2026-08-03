@@ -18,14 +18,16 @@ class Message(Base):
     is_from_me: Mapped[bool] = mapped_column(Boolean, default=False)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
     reply_to_id: Mapped[int] = mapped_column(ForeignKey("messages.id"), nullable=True)
-    media_type: Mapped[str] = mapped_column(String(50), nullable=True)  # image | document
+    media_type: Mapped[str] = mapped_column(String(50), nullable=True)  # image | document | voice | audio
     media_path: Mapped[str] = mapped_column(String(500), nullable=True)
     media_name: Mapped[str] = mapped_column(String(255), nullable=True)
     media_data: Mapped[bytes] = mapped_column(LargeBinary, nullable=True)
+    media_external_id: Mapped[str] = mapped_column(String(500), nullable=True)  # file_id (TG) / url (MAX)
+    duration: Mapped[int] = mapped_column(Integer, nullable=True)  # секунды (голосовые/аудио)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     chat: Mapped["Chat"] = relationship(back_populates="messages")
 
     @property
     def media_url(self) -> str | None:
-        return f"/messages/{self.id}/media" if (self.media_path or self.media_data) else None
+        return f"/messages/{self.id}/media" if (self.media_path or self.media_data or self.media_external_id) else None

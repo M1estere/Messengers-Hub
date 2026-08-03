@@ -18,6 +18,7 @@ class MessageOut(BaseModel):
     media_path: str | None = None
     media_name: str | None = None
     media_url: str | None = None
+    duration: int | None = None
     created_at: datetime
 
 

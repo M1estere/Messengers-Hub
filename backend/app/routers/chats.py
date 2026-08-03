@@ -1,8 +1,5 @@
-from pathlib import Path
-
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi import Response
-from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -66,14 +63,8 @@ async def delete_chat(chat_id: int, db: AsyncSession = Depends(get_db)):
     chat = await db.get(Chat, chat_id)
     if chat is None:
         raise HTTPException(404, "чат не найден")
-    avatar_path = chat.avatar_file_path
     await db.delete(chat)
     await db.commit()
-    if avatar_path and Path(avatar_path).exists():
-        try:
-            Path(avatar_path).unlink()
-        except OSError:
-            pass
     return {"ok": True}
 
 
@@ -83,11 +74,10 @@ async def get_avatar(chat_id: int, db: AsyncSession = Depends(get_db)):
     if chat is None:
         return Response(status_code=404)
 
-    if not chat.avatar_file_path or not Path(chat.avatar_file_path).exists():
-        if chat.platform == Platform.TELEGRAM:
-            await load_avatar(chat, db)
+    if not chat.avatar_data and chat.platform == Platform.TELEGRAM:
+        await load_avatar(chat, db)
 
-    if chat.avatar_file_path and Path(chat.avatar_file_path).exists():
-        return FileResponse(chat.avatar_file_path, media_type="image/jpeg")
+    if chat.avatar_data:
+        return Response(content=chat.avatar_data, media_type="image/jpeg")
 
     return Response(status_code=204)

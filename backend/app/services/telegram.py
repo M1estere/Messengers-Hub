@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 import re
-from pathlib import Path
 
 import httpx
 from sqlalchemy import select
@@ -14,7 +13,6 @@ from app.models import Account, Chat, Message, Platform
 logger = logging.getLogger(__name__)
 
 TELEGRAM_API = "https://api.telegram.org/bot{token}/{method}"
-AVATARS_DIR = Path(__file__).resolve().parent.parent / "avatars"
 
 
 class TelegramService:
@@ -211,6 +209,34 @@ async def save_message(account: Account, chat_data: dict, message_data: dict, de
         sender_id = (message_data.get("from") or {}).get("id")
         is_from_me = bool(account.bot_id) and str(sender_id) == str(account.bot_id)
 
+        media_type, media_name, duration = None, None, None
+        media_data = None
+        media_external_id = None
+        voice = message_data.get("voice")
+        audio = message_data.get("audio")
+        if voice or audio:
+            item = voice or audio
+            file_id = item.get("file_id")
+            media_external_id = file_id
+            if voice:
+                media_type = "voice"
+                media_name = "voice.ogg"
+            else:
+                media_type = "audio"
+                media_name = (
+                    item.get("file_name")
+                    or item.get("title")
+                    or f"audio.{item.get('mime_type', 'mp3').split('/')[-1] or 'mp3'}"
+                )
+            duration = item.get("duration")
+            if file_id:
+                try:
+                    media_data = await telegram.download_file(
+                        await telegram.get_file_path(file_id)
+                    )
+                except Exception as exc:
+                    logger.debug("TG voice download %s: %s", chat.id, exc)
+
         reply_to_id = None
         reply_to = message_data.get("reply_to_message")
         if reply_to and depth < 5 and reply_to.get("chat"):
@@ -237,6 +263,11 @@ async def save_message(account: Account, chat_data: dict, message_data: dict, de
                 sender_name=sender,
                 is_from_me=is_from_me,
                 reply_to_id=reply_to_id,
+                media_type=media_type,
+                media_name=media_name,
+                media_data=media_data,
+                media_external_id=media_external_id,
+                duration=duration,
             )
         )
         await session.commit()
@@ -269,10 +300,7 @@ async def load_avatar(chat, session):
 
     if not content:
         return False
-    AVATARS_DIR.mkdir(parents=True, exist_ok=True)
-    local_path = AVATARS_DIR / f"chat_{chat.id}.jpg"
-    local_path.write_bytes(content)
-    chat.avatar_file_path = str(local_path)
+    chat.avatar_data = content
     if info and chat.username is None and info.get("username"):
         chat.username = info.get("username")
     if info and chat.first_name is None and info.get("first_name"):
@@ -290,7 +318,7 @@ async def avatar_fetch_loop():
             async with async_session() as session:
                 result = await session.execute(select(Chat))
                 for chat in result.scalars():
-                    if not chat.avatar_file_path or not Path(chat.avatar_file_path).exists():
+                    if not chat.avatar_data:
                         await load_avatar(chat, session)
         except Exception as exc:
             logger.debug("avatar_fetch_loop error: %s", exc)

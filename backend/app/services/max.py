@@ -70,6 +70,12 @@ class MaxService:
     async def delete_message(self, message_id: str | int) -> dict:
         return await self._call("DELETE", "messages", params={"message_id": message_id})
 
+    async def download_url(self, url: str) -> bytes:
+        async with httpx.AsyncClient(verify=settings.max_verify_ssl) as client:
+            resp = await client.get(url, timeout=60)
+            resp.raise_for_status()
+            return resp.content
+
     async def upload_file(self, upload_type: str, content: bytes, filename: str) -> str:
         data = await self._call("POST", f"uploads?type={upload_type}")
         url = data.get("url")
@@ -217,6 +223,34 @@ async def save_max_message(account: Account, message: dict):
     sender = message.get("sender") or {}
     body = message.get("body") or {}
     text = body.get("text")
+
+    media_type, media_name, media_data, duration = None, None, None, None
+    media_external_id = None
+    for att in body.get("attachments") or []:
+        att_type = (att.get("type") or "").lower()
+        if att_type in ("audio", "voice"):
+            payload = att.get("payload") or {}
+            media_type = "voice" if att_type == "voice" else "audio"
+            duration = (
+                payload.get("duration")
+                or att.get("duration")
+                or payload.get("duration_secs")
+            )
+            if isinstance(duration, str) and duration.isdigit():
+                duration = int(duration)
+            media_name = (
+                payload.get("file_name")
+                or att.get("filename")
+                or (f"voice.{payload.get('mime_type', 'ogg').split('/')[-1]}" if media_type == "voice" else "audio")
+            )
+            url = payload.get("url")
+            media_external_id = url
+            if url:
+                try:
+                    media_data = await max_service.download_url(url)
+                except Exception as exc:
+                    logger.debug("MAX audio download %s: %s", chat_id, exc)
+            break
     mid = (
         body.get("mid")
         or message.get("mid")
@@ -237,6 +271,11 @@ async def save_max_message(account: Account, message: dict):
         "text": text,
         "sender_name": sender.get("first_name") or sender.get("username") or "",
         "is_from_me": False,
+        "media_type": media_type,
+        "media_name": media_name,
+        "media_data": media_data,
+        "media_external_id": media_external_id,
+        "duration": duration,
     }
     if created_at is not None:
         kwargs["created_at"] = created_at
@@ -254,7 +293,7 @@ async def save_max_message(account: Account, message: dict):
         reply_to_id = None
         link = message.get("link")
         if link and link.get("type") == "reply":
-            linked_body = link.get("message_body") or {}
+            linked_body = link.get("message_body") or link.get("message") or {}
             linked_mid = str(linked_body.get("mid") or "")
             if linked_mid:
                 target = await session.execute(

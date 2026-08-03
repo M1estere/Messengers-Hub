@@ -21,7 +21,33 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await _migrate_missing_columns()
+    await _backfill_avatars()
     await _backfill_max_user_ids()
+
+
+async def _backfill_avatars():
+    """Переносим аватарки из файлов в БД (avatar_data) и удаляем файлы."""
+    from pathlib import Path
+
+    from app.models import Chat
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(Chat).where(
+                Chat.avatar_file_path.is_not(None),
+                Chat.avatar_data.is_(None),
+            )
+        )
+        for chat in result.scalars():
+            path = chat.avatar_file_path
+            if not path or not Path(path).exists():
+                continue
+            try:
+                chat.avatar_data = Path(path).read_bytes()
+                await session.commit()
+                Path(path).unlink(missing_ok=True)
+            except Exception:
+                pass
 
 
 async def _backfill_max_user_ids():
@@ -69,6 +95,10 @@ async def _migrate_missing_columns():
         if "avatar_file_path" not in existing:
             await conn.exec_driver_sql(
                 "ALTER TABLE chats ADD COLUMN avatar_file_path VARCHAR(500)"
+            )
+        if "avatar_data" not in existing:
+            await conn.exec_driver_sql(
+                "ALTER TABLE chats ADD COLUMN avatar_data BLOB"
             )
         if "username" not in existing:
             await conn.exec_driver_sql(
@@ -118,6 +148,14 @@ async def _migrate_missing_columns():
         if "media_data" not in existing:
             await conn.exec_driver_sql(
                 "ALTER TABLE messages ADD COLUMN media_data BLOB"
+            )
+        if "duration" not in existing:
+            await conn.exec_driver_sql(
+                "ALTER TABLE messages ADD COLUMN duration INTEGER"
+            )
+        if "media_external_id" not in existing:
+            await conn.exec_driver_sql(
+                "ALTER TABLE messages ADD COLUMN media_external_id VARCHAR(500)"
             )
         if "reply_to_id" not in existing:
             await conn.exec_driver_sql(

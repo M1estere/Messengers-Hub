@@ -1,8 +1,9 @@
 import mimetypes
+import re
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +12,7 @@ from app.database import get_db
 from app.models import Chat, Message
 from app.schemas.chat import MessageOut
 from app.services.max import max_service
+from app.services.media import fetch_message_media
 from app.services.telegram import telegram
 
 router = APIRouter(prefix="/messages", tags=["messages"])
@@ -72,7 +74,7 @@ async def send_message(
             upload_type = "image" if media_type == "image" else "file"
             result = await max_service.send_media(
                 int(chat.external_id), upload_type, content, media_name, text,
-                link={"type": "reply", "message_id": reply_external_id} if reply_external_id else None,
+                link={"type": "reply", "mid": reply_external_id} if reply_external_id else None,
             )
             external_id = _max_message_id(result)
         else:
@@ -84,7 +86,7 @@ async def send_message(
         elif chat.platform == "max":
             result = await max_service.send_message(
                 text, chat_id=int(chat.external_id),
-                link={"type": "reply", "message_id": reply_external_id} if reply_external_id else None,
+                link={"type": "reply", "mid": reply_external_id} if reply_external_id else None,
             )
             external_id = _max_message_id(result)
         else:
@@ -145,12 +147,24 @@ async def delete_message(message_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/{message_id}/media")
-async def get_media(message_id: int, download: bool = False, db: AsyncSession = Depends(get_db)):
+async def get_media(
+    message_id: int,
+    request: Request,
+    download: bool = False,
+    db: AsyncSession = Depends(get_db),
+):
     message = await db.get(Message, message_id)
     if message is None:
         raise HTTPException(404, "сообщение не найдено")
     filename = message.media_name
-    content_type = mimetypes.guess_type(filename or "")[0] or "application/octet-stream"
+    content_type = mimetypes.guess_type(filename or "")[0]
+    if content_type is None:
+        if message.media_type in ("voice", "audio"):
+            content_type = "audio/ogg"
+        elif message.media_type == "image":
+            content_type = "image/jpeg"
+        else:
+            content_type = "application/octet-stream"
     headers = {}
     if download and filename:
         ascii_name = filename.encode("ascii", "ignore").decode() or "file"
@@ -159,7 +173,38 @@ async def get_media(message_id: int, download: bool = False, db: AsyncSession = 
             f"filename*=UTF-8''{quote(filename)}"
         )
     if message.media_data:
+        headers["Accept-Ranges"] = "bytes"
+        if not download:
+            range_header = request.headers.get("range")
+            if range_header:
+                match = re.match(r"bytes=(\d*)-(\d*)", range_header)
+                if match:
+                    start_s, end_s = match.groups()
+                    total = len(message.media_data)
+                    try:
+                        start = int(start_s) if start_s else 0
+                        end = int(end_s) if end_s else total - 1
+                        if end >= total:
+                            end = total - 1
+                        if start <= end and 0 <= start < total:
+                            chunk = message.media_data[start:end + 1]
+                            headers["Content-Range"] = f"bytes {start}-{end}/{total}"
+                            return Response(
+                                status_code=206,
+                                content=chunk,
+                                media_type=content_type,
+                                headers=headers,
+                            )
+                    except ValueError:
+                        pass
         return Response(content=message.media_data, media_type=content_type, headers=headers)
+    if message.media_external_id:
+        data = await fetch_message_media(message)
+        if data:
+            message.media_data = data
+            await db.commit()
+            headers["Accept-Ranges"] = "bytes"
+            return Response(content=data, media_type=content_type, headers=headers)
     if message.media_path and Path(message.media_path).exists():
         return FileResponse(message.media_path, media_type=content_type, headers=headers)
     raise HTTPException(404, "медиа не найдено")
