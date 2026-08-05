@@ -28,8 +28,15 @@ async def fetch_message_media(message: Message) -> bytes | None:
         return None
     try:
         if message.platform == Platform.TELEGRAM:
-            file_path = await telegram.get_file_path(message.media_external_id)
-            return await telegram.download_file(file_path)
+            for attempt in range(5):
+                try:
+                    file_path = await telegram.get_file_path(message.media_external_id)
+                    return await telegram.download_file(file_path, attempts=2)
+                except Exception as exc:
+                    if attempt == 4:
+                        raise
+                    _log_error(f"[{message.id}] telegram download retry {attempt + 1}: {exc!r}")
+                    await asyncio.sleep(2)
         if message.platform == Platform.MAX:
             return await max_service.download_url(message.media_external_id)
     except Exception as exc:

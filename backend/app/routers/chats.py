@@ -7,8 +7,9 @@ from app.database import get_db
 from app.models import Chat, Message, Platform
 from app.schemas.chat import ChatOut, MessageOut
 from app.services.telegram import load_avatar
+from app.services.auth import require_user
 
-router = APIRouter(prefix="/chats", tags=["chats"])
+router = APIRouter(prefix="/chats", tags=["chats"], dependencies=[Depends(require_user)])
 
 
 @router.get("/", response_model=list[ChatOut])
@@ -40,7 +41,7 @@ async def list_chats(db: AsyncSession = Depends(get_db)):
             first_name=chat.first_name,
             username=chat.username,
             type=chat.type,
-            avatar_url=f"/chats/{chat.id}/avatar",
+            avatar_url=f"/connect-hub/api/chats/{chat.id}/avatar",
             is_pinned=chat.is_pinned,
             last_message=MessageOut.model_validate(last_message) if last_message else None,
         )

@@ -14,8 +14,9 @@ from app.schemas.chat import MessageOut
 from app.services.max import max_service
 from app.services.media import fetch_message_media
 from app.services.telegram import telegram
+from app.services.auth import require_user
 
-router = APIRouter(prefix="/messages", tags=["messages"])
+router = APIRouter(prefix="/messages", tags=["messages"], dependencies=[Depends(require_user)])
 
 
 @router.get("/{chat_id}", response_model=list[MessageOut])

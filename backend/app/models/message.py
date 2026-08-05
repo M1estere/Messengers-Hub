@@ -30,4 +30,4 @@ class Message(Base):
 
     @property
     def media_url(self) -> str | None:
-        return f"/messages/{self.id}/media" if (self.media_path or self.media_data or self.media_external_id) else None
+        return f"/connect-hub/api/messages/{self.id}/media" if (self.media_path or self.media_data or self.media_external_id) else None

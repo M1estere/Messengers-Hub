@@ -4,6 +4,56 @@ import maxIcon from './assets/max.jpg'
 import './App.css'
 
 const MIN_LEFT_WIDTH = 90
+const API_BASE = '/connect-hub/api'
+
+function AuthScreen({ onAuthenticated }) {
+  const [mode, setMode] = useState('login')
+  const [login, setLogin] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [pending, setPending] = useState(false)
+
+  const submit = async (e) => {
+    e.preventDefault()
+    setError('')
+    setPending(true)
+    try {
+      const body = mode === 'login' ? { login, password } : { email, password }
+      const res = await fetch(`${API_BASE}/auth/${mode}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Ошибка авторизации')
+      onAuthenticated(data)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return (
+    <div className="auth-page">
+      <form className="auth-card" onSubmit={submit}>
+        <p>{mode === 'login' ? 'Вход' : 'Регистрация'}</p>
+        {mode === 'login' ? (
+          <input value={login} onChange={(e) => setLogin(e.target.value)} placeholder="Логин или email" autoComplete="username" required />
+        ) : (
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" autoComplete="email" required />
+        )}
+        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Пароль" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={mode === 'register' ? 6 : undefined} required />
+        {error && <div className="auth-error">{error}</div>}
+        <button type="submit" disabled={pending}>{pending ? 'Загрузка…' : mode === 'login' ? 'Войти' : 'Зарегистрироваться'}</button>
+        <button type="button" className="auth-switch" onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError('') }}>
+          {mode === 'login' ? 'Регистрация по email' : 'Уже есть аккаунт'}
+        </button>
+      </form>
+    </div>
+  )
+}
 
 const EMOJIS = [
   '😀','😁','😂','🤣','😃','😄','😅','😆','😉','😊','😋','😎','😍','🥰','😘','😜',
@@ -24,7 +74,23 @@ function fmtTime(iso) {
     })
 }
 
+function fmtDuration(sec) {
+    if (!sec || isNaN(sec)) return '0:00'
+    const s = Math.round(sec)
+    const m = Math.floor(s / 60)
+    const r = s % 60
+    return `${m}:${String(r).padStart(2, '0')}`
+}
+
+const mediaLabel = (m) =>
+    m?.media_type === 'image' ? 'Изображение'
+    : m?.media_type === 'document' ? 'Файл'
+    : m?.media_type === 'voice' ? 'Голосовое сообщение'
+    : m?.media_type === 'audio' ? 'Аудио'
+    : m?.media_name || ''
+
 function App() {
+  const [user, setUser] = useState(undefined)
   const [chats, setChats] = useState([])
   const [error, setError] = useState(null)
   const [selectedChat, setSelectedChat] = useState(null)
@@ -39,20 +105,29 @@ function App() {
   })
   const [dragging, setDragging] = useState(false)
 
+  useEffect(() => {
+    fetch(`${API_BASE}/auth/me`)
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => setUser(data))
+      .catch(() => setUser(null))
+  }, [])
+
   const selectChat = (chat) => {
     setSelectedChat(chat)
     localStorage.setItem('selectedChatId', String(chat.id))
   }
 
   const refreshChats = () => {
-    fetch('/chats')
+    if (!user) return
+    fetch(`${API_BASE}/chats`)
       .then((res) => res.json())
       .then((data) => setChats(data))
       .catch(() => {})
   }
 
   useEffect(() => {
-    fetch('/chats')
+    if (!user) return
+    fetch(`${API_BASE}/chats`)
       .then((res) => res.json())
       .then((data) => {
         setChats(data)
@@ -63,17 +138,18 @@ function App() {
         }
       })
       .catch((err) => setError(err.message))
-  }, [])
+  }, [user])
 
   useEffect(() => {
+    if (!user) return
     const t = setInterval(refreshChats, 4000)
     return () => clearInterval(t)
-  }, [])
+  }, [user])
 
   const deleteChat = async (id) => {
     if (!window.confirm('Удалить чат?')) return
     try {
-      await fetch(`/chats/${id}`, { method: 'DELETE' })
+      await fetch(`${API_BASE}/chats/${id}`, { method: 'DELETE' })
     } catch (e) {}
     setMenu(null)
     if (selectedChat && selectedChat.id === id) {
@@ -86,7 +162,7 @@ function App() {
   const togglePin = async (chat) => {
     setMenu(null)
     try {
-      await fetch(`/chats/${chat.id}/pin?pinned=${!chat.is_pinned}`, { method: 'PATCH' })
+      await fetch(`${API_BASE}/chats/${chat.id}/pin?pinned=${!chat.is_pinned}`, { method: 'PATCH' })
     } catch (e) {}
     refreshChats()
   }
@@ -127,6 +203,14 @@ function App() {
     }
     window.addEventListener('mousemove', move)
     window.addEventListener('mouseup', up)
+  }
+
+  if (user === undefined) {
+    return <div className="auth-page"><div className="auth-card">Загрузка…</div></div>
+  }
+
+  if (!user) {
+    return <AuthScreen onAuthenticated={setUser} />
   }
 
   if (error) {
@@ -172,14 +256,25 @@ function App() {
                     <>
                       {!chat.last_message.is_from_me && !chat.last_message.is_read && <span className="unread-dot">● </span>}
                       <b>{chat.last_message.is_from_me ? 'Вы' : chat.first_name}:</b>{' '}
-                      {chat.last_message.text || chat.last_message.media_name ||
-                          (chat.last_message.media_type === 'image' ? 'Изображение' : 'Файл')}
+                      {chat.last_message.text || mediaLabel(chat.last_message)}
                     </>
                   )}
                 </div>
               </div>
             </div>
           ))}
+        </div>
+        <div className="sidebar-footer">
+          <button className="logout-btn" title={`Выйти: ${user.username}`} onClick={async () => {
+            await fetch(`${API_BASE}/auth/logout`, { method: 'POST' })
+            setChats([])
+            setSelectedChat(null)
+            setUser(null)
+          }} aria-label="Выйти">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M10 17l5-5-5-5v3H3v4h7v3zm9-14h-8a2 2 0 0 0-2 2v3h2V5h8v14h-8v-3H9v3a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z" />
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -245,6 +340,104 @@ function Avatar({ chat }) {
       {avatar}
       {badge}
     </span>
+  )
+}
+
+function VoicePlayer({ src, duration }) {
+  const audioRef = useRef(null)
+  const retryRef = useRef(null)
+  const [playing, setPlaying] = useState(false)
+  const [current, setCurrent] = useState(0)
+  const [total, setTotal] = useState(duration || 0)
+  const [retrying, setRetrying] = useState(false)
+
+  useEffect(() => {
+    const el = audioRef.current
+    if (!el) return
+    const onTime = () => setCurrent(el.currentTime)
+    const onMeta = () => {
+      setRetrying(false)
+      if (el.duration && isFinite(el.duration)) setTotal(el.duration)
+    }
+    const onEnd = () => setPlaying(false)
+    const onPlay = () => setPlaying(true)
+    const onPause = () => setPlaying(false)
+    const onError = () => {
+      setRetrying(true)
+      clearTimeout(retryRef.current)
+      retryRef.current = setTimeout(() => {
+        if (el) el.load()
+      }, 5000)
+    }
+    el.addEventListener('timeupdate', onTime)
+    el.addEventListener('loadedmetadata', onMeta)
+    el.addEventListener('ended', onEnd)
+    el.addEventListener('play', onPlay)
+    el.addEventListener('pause', onPause)
+    el.addEventListener('error', onError)
+    el.load()
+    return () => {
+      clearTimeout(retryRef.current)
+      el.removeEventListener('timeupdate', onTime)
+      el.removeEventListener('loadedmetadata', onMeta)
+      el.removeEventListener('ended', onEnd)
+      el.removeEventListener('play', onPlay)
+      el.removeEventListener('pause', onPause)
+      el.removeEventListener('error', onError)
+      el.pause()
+    }
+  }, [src])
+
+  const toggle = () => {
+    const el = audioRef.current
+    if (!el) return
+    if (el.paused) {
+      document.querySelectorAll('.voice-audio').forEach((a) => {
+        if (a !== el) a.pause()
+      })
+      el.play().catch(() => {})
+    } else {
+      el.pause()
+    }
+    console.log("Playback status: ", !el.paused)
+  }
+
+  const seek = (e) => {
+    const el = audioRef.current
+    const bar = e.currentTarget
+    const rect = bar.getBoundingClientRect()
+    const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
+    if (el) el.currentTime = ratio * (el.duration || total || 0)
+  }
+
+  const pct = total ? Math.min(100, (current / total) * 100) : 0
+
+  return (
+    <div className="voice-player">
+      <audio ref={audioRef} className="voice-audio" preload="metadata" src={src} />
+      <button
+        className="voice-play"
+        onClick={toggle}
+        title={playing ? 'Пауза' : 'Слушать'}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+          {playing ? (
+            <>
+              <rect x="6" y="5" width="4" height="14" rx="1" />
+              <rect x="14" y="5" width="4" height="14" rx="1" />
+            </>
+          ) : (
+            <path d="M8 5v14l11-7z" />
+          )}
+        </svg>
+      </button>
+      <div className="voice-track" onClick={seek}>
+        <div className="voice-track-fill" style={{ width: pct + '%' }} />
+      </div>
+      <span className="voice-time">
+        {retrying ? '…' : playing || current > 0 ? fmtDuration(current) : fmtDuration(total)}
+      </span>
+    </div>
   )
 }
 
@@ -328,10 +521,7 @@ function ChatView({ chat, onMessageSent, onBack }) {
     }
   }, [msgMenu])
 
-  const previewText = (msg) =>
-    msg?.text ||
-    msg?.media_name ||
-    (msg?.media_type === 'image' ? 'Изображение' : msg?.media_type === 'document' ? 'Файл' : '')
+  const previewText = (msg) => msg?.text || mediaLabel(msg)
 
   const authorName = (msg) =>
     msg?.is_from_me ? 'Вы' : (msg?.sender_name || chat.first_name || chat.title || '')
@@ -354,7 +544,7 @@ function ChatView({ chat, onMessageSent, onBack }) {
   }
 
   const load = () => {
-    fetch(`/messages/${chat.id}`)
+    fetch(`${API_BASE}/messages/${chat.id}`)
       .then((res) => res.json())
       .then((data) => {
         setMessages((prev) => {
@@ -420,7 +610,7 @@ function ChatView({ chat, onMessageSent, onBack }) {
 
   const deleteMessage = async (id) => {
     if (!window.confirm('Удалить сообщение?')) return
-    await fetch(`/messages/${id}`, { method: 'DELETE' })
+    await fetch(`${API_BASE}/messages/${id}`, { method: 'DELETE' })
     setMsgMenu(null)
     load()
     onMessageSent && onMessageSent()
@@ -432,7 +622,7 @@ function ChatView({ chat, onMessageSent, onBack }) {
     fd.append('text', text)
     if (file) fd.append('file', file)
     if (replyTo) fd.append('reply_to_id', String(replyTo.id))
-    await fetch(`/messages/${chat.id}`, { method: 'POST', body: fd })
+    await fetch(`${API_BASE}/messages/${chat.id}`, { method: 'POST', body: fd })
     setText('')
     setFile(null)
     setReplyTo(null)
@@ -520,6 +710,9 @@ function ChatView({ chat, onMessageSent, onBack }) {
                 </svg>
                 <span className="message-doc-name">{m.media_name}</span>
               </div>
+            )}
+            {(m.media_type === 'voice' || m.media_type === 'audio') && (
+              <VoicePlayer src={m.media_url} duration={m.duration} />
             )}
             {m.text && <div>{m.text}</div>}
             {m.created_at && (
