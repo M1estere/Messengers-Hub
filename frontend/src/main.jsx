@@ -9,3 +9,9 @@ createRoot(document.getElementById('root')).render(
     <App />
   </StrictMode>,
 )
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/connect-hub/sw.js', { scope: '/connect-hub/' })
+  })
+}

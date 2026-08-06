@@ -64,10 +64,64 @@
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   padding: 8px 10px;
   border-top: 1px solid rgba(255, 255, 255, .08);
   box-sizing: border-box;
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  background: #242424;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+}
+
+.pwa-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.push-status {
+  position: fixed;
+  left: 12px;
+  bottom: calc(58px + env(safe-area-inset-bottom));
+  z-index: 100;
+  max-width: min(360px, calc(100vw - 24px));
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: #7a2f35;
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.35;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, .35);
+}
+
+.push-status.success {
+  background: #246a43;
+}
+
+.logout-btn.active {
+  color: #7bc5ff;
+  background: rgba(77, 163, 255, .14);
+}
+
+.avatar-badge.website-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #2563eb;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.chat-source {
+  display: block;
+  margin-top: 2px;
+  color: #9ca3af;
+  font-size: 12px;
 }
 
 .chat_block {
@@ -257,7 +311,48 @@
 .chat-view-name-wrap {
   text-align: start;
   min-width: 0;
+  flex: 1;
 }
+
+.yougile-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #59616d;
+  border-radius: 7px;
+  background: #30343b;
+  color: #fff;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+.yougile-btn:hover { background: #3a4049; }
+.yougile-btn:disabled { opacity: .6; cursor: default; }
+.yougile-btn-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  background: #7b61ff;
+  font-weight: 800;
+  font-size: 12px;
+}
+.yougile-status {
+  position: absolute;
+  top: 58px;
+  right: 12px;
+  z-index: 30;
+  max-width: 320px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #1f7a43;
+  color: #fff;
+  font-size: 12px;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, .3);
+}
+.yougile-status.error { background: #9f3030; }
 
 .chat-view-title {
   font-weight: 600;
@@ -639,8 +734,12 @@
 /* ---------- mobile ---------- */
 
 .auth-page {
-  min-width: 25vw;
+  width: 100vw;
+  min-width: 100vw;
+  height: 100vh;
   min-height: 100vh;
+  height: 100dvh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -710,12 +809,19 @@
 /* ---------- mobile ---------- */
 
 @media (max-width: 768px) {
+  .yougile-btn-text { display: none; }
   .divider {
     display: none;
   }
 
   .sidebar {
     width: 100% !important;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .sidebar-footer {
+    flex: 0 0 auto;
   }
 
   .chat-panel {
