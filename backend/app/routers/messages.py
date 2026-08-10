@@ -78,6 +78,8 @@ async def send_message(
                 link={"type": "reply", "mid": reply_external_id} if reply_external_id else None,
             )
             external_id = _max_message_id(result)
+        elif chat.platform == "website":
+            raise HTTPException(400, "виджет сайта пока поддерживает только текстовые сообщения")
         else:
             raise HTTPException(501, f"отправка медиа на платформу {chat.platform} ещё не поддерживается")
     else:
@@ -90,6 +92,8 @@ async def send_message(
                 link={"type": "reply", "mid": reply_external_id} if reply_external_id else None,
             )
             external_id = _max_message_id(result)
+        elif chat.platform == "website":
+            external_id = f"operator-{chat.id}-{int(__import__('time').time() * 1000)}"
         else:
             raise HTTPException(501, f"платформа {chat.platform} ещё не поддерживается")
 

@@ -8,8 +8,23 @@ from app.models import Chat, Message, Platform
 from app.schemas.chat import ChatOut, MessageOut
 from app.services.telegram import load_avatar
 from app.services.auth import require_user
+from app.services.yougile import create_yougile_task
 
 router = APIRouter(prefix="/chats", tags=["chats"], dependencies=[Depends(require_user)])
+
+
+@router.post("/{chat_id}/yougile")
+async def add_to_yougile(chat_id: int, db: AsyncSession = Depends(get_db)):
+    chat = await db.get(Chat, chat_id)
+    if chat is None:
+        raise HTTPException(404, "чат не найден")
+    try:
+        task = await create_yougile_task(chat)
+    except ValueError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(502, str(exc)) from exc
+    return {"ok": True, "task": task}
 
 
 @router.get("/", response_model=list[ChatOut])

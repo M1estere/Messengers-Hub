@@ -8,6 +8,7 @@ from sqlalchemy import select
 from app.config import settings
 from app.database import async_session
 from app.models import Account, Chat, Message, Platform
+from app.services.push import send_new_message_push
 
 logger = logging.getLogger(__name__)
 
@@ -318,6 +319,11 @@ async def save_max_message(account: Account, message: dict):
 
         session.add(Message(**kwargs, reply_to_id=reply_to_id))
         await session.commit()
+        await send_new_message_push(
+            chat.id,
+            chat.title or chat.username or "MAX",
+            text or ("Голосовое сообщение" if media_type == "voice" else "Новое сообщение"),
+        )
 
 
 async def handle_max_update(update: dict):

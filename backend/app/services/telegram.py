@@ -9,6 +9,7 @@ from sqlalchemy import select
 from app.config import settings
 from app.database import async_session
 from app.models import Account, Chat, Message, Platform
+from app.services.push import send_new_message_push
 
 logger = logging.getLogger(__name__)
 
@@ -271,6 +272,12 @@ async def save_message(account: Account, chat_data: dict, message_data: dict, de
             )
         )
         await session.commit()
+        if not is_from_me and depth == 0:
+            await send_new_message_push(
+                chat.id,
+                chat.title or chat.username or "Telegram",
+                text or ("Голосовое сообщение" if media_type == "voice" else "Новое сообщение"),
+            )
 
 
 async def load_avatar(chat, session):
