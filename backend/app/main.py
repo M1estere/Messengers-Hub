@@ -42,7 +42,13 @@ async def lifespan(app: FastAPI):
     media_loader.cancel()
 
 
-app = FastAPI(title="ConnectHub", lifespan=lifespan)
+app = FastAPI(
+    title="Connect Hub API",
+    description="API для авторизации, чатов, сообщений, push-уведомлений, вебхуков и виджета сайта.",
+    version="1.0.0",
+    root_path="/connect-hub/api",
+    lifespan=lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,
