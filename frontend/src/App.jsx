@@ -20,6 +20,30 @@ function withTimeout(promise, timeoutMs, message) {
   ])
 }
 
+function WebsiteSource({ pageUrl }) {
+  let websiteUrl = null
+  try {
+    const parsed = new URL(pageUrl)
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') websiteUrl = parsed
+  } catch {
+    websiteUrl = null
+  }
+
+  return (
+    <span className="chat-source">
+      Источник: сайт
+      {websiteUrl && (
+        <>
+          {' - '}
+          <a href={websiteUrl.href} target="_blank" rel="noopener noreferrer" title={websiteUrl.href}>
+            {websiteUrl.hostname}
+          </a>
+        </>
+      )}
+    </span>
+  )
+}
+
 function PwaControls() {
   const [installPrompt, setInstallPrompt] = useState(null)
   const [pushEnabled, setPushEnabled] = useState(false)
@@ -815,7 +839,7 @@ function ChatView({ chat, onMessageSent, onBack }) {
           {chat.platform === 'website' ? (
             <>
               <span className="chat-view-title">{chat.title}</span>
-              <span className="chat-source">Источник: сайт</span>
+              <WebsiteSource pageUrl={chat.user_external_id} />
             </>
           ) : (
             <a

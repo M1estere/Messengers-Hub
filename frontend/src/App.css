@@ -124,6 +124,16 @@
   font-size: 12px;
 }
 
+.chat-source a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.chat-source a:hover {
+  color: #d1d5db;
+}
+
 .chat_block {
   width: 100%;
   padding: 10px 15px;
