@@ -58,7 +58,13 @@
     bubble.addEventListener('click', () => {
       opened = !opened
       panel.classList.toggle('open', opened)
-      if (opened) { load(); input.focus() }
+      if (opened) {
+        load()
+        input.focus()
+        window.requestAnimationFrame(() => {
+          messages.scrollTop = messages.scrollHeight
+        })
+      }
     })
     close.addEventListener('click', () => {
       opened = false
