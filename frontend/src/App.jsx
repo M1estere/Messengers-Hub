@@ -1,10 +1,99 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import telegramIcon from './assets/telegram.png'
 import maxIcon from './assets/max.jpg'
 import './App.css'
 
 const MIN_LEFT_WIDTH = 90
 const API_BASE = '/connect-hub/api'
+const SOURCE_FILTERS = [
+  { value: 'all', label: 'Все' },
+  { value: 'telegram', label: 'Телеграм' },
+  { value: 'max', label: 'Макс' },
+  { value: 'website', label: 'Сайты' },
+]
+
+function SourceFilterIcon({ source }) {
+  if (source === 'telegram') return <img src={telegramIcon} alt="" />
+  if (source === 'max') return <img src={maxIcon} alt="" />
+  if (source === 'website') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M3 12h18M12 3c2.3 2.5 3.5 5.5 3.5 9S14.3 18.5 12 21M12 3C9.7 5.5 8.5 8.5 8.5 12S9.7 18.5 12 21" />
+      </svg>
+    )
+  }
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+    </svg>
+  )
+}
+
+function SourceFilterSelect({ value, onChange }) {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef(null)
+  const selected = SOURCE_FILTERS.find((source) => source.value === value) || SOURCE_FILTERS[0]
+
+  useEffect(() => {
+    if (!open) return
+    const onOutsideClick = (event) => {
+      if (wrapRef.current && !wrapRef.current.contains(event.target)) setOpen(false)
+    }
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    window.addEventListener('click', onOutsideClick)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('click', onOutsideClick)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
+  return (
+    <div className="source-select" ref={wrapRef}>
+      <button
+        type="button"
+        className="source-select-trigger"
+        aria-label={`Источник: ${selected.label}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        title={selected.label}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span className="source-filter-icon"><SourceFilterIcon source={selected.value} /></span>
+        <span className="source-select-value">{selected.label}</span>
+        <svg className="source-select-arrow" viewBox="0 0 20 20" aria-hidden="true">
+          <path d="m5 7.5 5 5 5-5" />
+        </svg>
+      </button>
+      {open && (
+        <div className="source-select-menu" role="listbox" aria-label="Источники">
+          {SOURCE_FILTERS.map((source) => (
+            <button
+              key={source.value}
+              type="button"
+              className={value === source.value ? 'active' : ''}
+              role="option"
+              aria-selected={value === source.value}
+              onClick={() => {
+                onChange(source.value)
+                setOpen(false)
+              }}
+            >
+              <span className="source-filter-icon"><SourceFilterIcon source={source.value} /></span>
+              <span>{source.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function urlBase64ToUint8Array(value) {
   const padding = '='.repeat((4 - value.length % 4) % 4)
@@ -44,7 +133,7 @@ function WebsiteSource({ pageUrl }) {
   )
 }
 
-function PwaControls() {
+function PwaControls({ onAction }) {
   const [installPrompt, setInstallPrompt] = useState(null)
   const [pushEnabled, setPushEnabled] = useState(false)
   const [pushBusy, setPushBusy] = useState(false)
@@ -155,14 +244,66 @@ function PwaControls() {
   return (
     <div className="pwa-controls">
       {!isStandalone && (
-        <button className="logout-btn" onClick={installApp} title="Установить приложение" aria-label="Установить приложение">
+        <button className="logout-btn" onClick={async () => { await installApp(); onAction?.() }} title="Установить приложение" aria-label="Установить приложение">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16l5-5h-3V3h-4v8H7l5 5zm-7 2v3h14v-3h2v5H3v-5h2z" /></svg>
+          <span className="sidebar-action-label">Установить PWA</span>
         </button>
       )}
-      <button className={`logout-btn ${pushEnabled ? 'active' : ''}`} onClick={togglePush} disabled={pushBusy} title={pushEnabled ? 'Отключить уведомления' : 'Включить уведомления'} aria-label={pushEnabled ? 'Отключить уведомления' : 'Включить уведомления'}>
+      <button className={`logout-btn ${pushEnabled ? 'active' : ''}`} onClick={async () => { await togglePush(); onAction?.() }} disabled={pushBusy} title={pushEnabled ? 'Отключить уведомления' : 'Включить уведомления'} aria-label={pushEnabled ? 'Отключить уведомления' : 'Включить уведомления'}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6v-5a7 7 0 0 0-5-6.71V3a2 2 0 0 0-4 0v1.29A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2z" /></svg>
+        <span className="sidebar-action-label">{pushEnabled ? 'Отключить уведомления' : 'Включить уведомления'}</span>
       </button>
       {pushStatus && <div className={`push-status ${pushEnabled ? 'success' : ''}`} role="status">{pushStatus}</div>}
+    </div>
+  )
+}
+
+function SidebarOptions({ user, onLogout }) {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onOutsideClick = (event) => {
+      if (wrapRef.current && !wrapRef.current.contains(event.target)) setOpen(false)
+    }
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    window.addEventListener('click', onOutsideClick)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('click', onOutsideClick)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
+  return (
+    <div className="sidebar-options" ref={wrapRef}>
+      <button
+        type="button"
+        className="sidebar-options-trigger"
+        title="Опции"
+        aria-label="Опции"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="5" cy="12" r="2" />
+          <circle cx="12" cy="12" r="2" />
+          <circle cx="19" cy="12" r="2" />
+        </svg>
+      </button>
+      <div className={`sidebar-options-menu ${open ? 'open' : ''}`} role="menu">
+        <PwaControls onAction={() => setOpen(false)} />
+        <button className="logout-btn" title={`Выйти: ${user.username}`} onClick={() => { setOpen(false); onLogout() }} aria-label="Выйти">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M10 17l5-5-5-5v3H3v4h7v3zm9-14h-8a2 2 0 0 0-2 2v3h2V5h8v14h-8v-3H9v3a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z" />
+          </svg>
+          <span className="sidebar-action-label">Выйти</span>
+        </button>
+      </div>
     </div>
   )
 }
@@ -235,6 +376,64 @@ function fmtTime(iso) {
     })
 }
 
+function parseMessageDate(iso) {
+    if (!iso) return null
+    const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z')
+    return Number.isNaN(d.getTime()) ? null : d
+}
+
+function messageDateKey(iso) {
+    const d = parseMessageDate(iso)
+    if (!d) return ''
+    return new Intl.DateTimeFormat('ru-RU', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        timeZone: 'Europe/Moscow',
+    }).format(d)
+}
+
+function fmtMessageDay(iso) {
+    const d = parseMessageDate(iso)
+    if (!d) return ''
+    return new Intl.DateTimeFormat('ru-RU', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'Europe/Moscow',
+    }).format(d)
+}
+
+function fmtSidebarDateTime(iso) {
+    const d = parseMessageDate(iso)
+    if (!d) return ''
+    const dateFormatter = new Intl.DateTimeFormat('en-CA', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        timeZone: 'Europe/Moscow',
+    })
+    const calendarDay = (value) => {
+        const parts = Object.fromEntries(dateFormatter.formatToParts(value).map((part) => [part.type, part.value]))
+        return Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day))
+    }
+    const daysAgo = Math.round((calendarDay(new Date()) - calendarDay(d)) / 86400000)
+
+    if (daysAgo === 0) return fmtTime(iso)
+    if (daysAgo >= 1 && daysAgo <= 7) {
+        return new Intl.DateTimeFormat('ru-RU', {
+            weekday: 'short',
+            timeZone: 'Europe/Moscow',
+        }).format(d).replace('.', '').slice(0, 2)
+    }
+    return new Intl.DateTimeFormat('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        timeZone: 'Europe/Moscow',
+    }).format(d)
+}
+
 function fmtDuration(sec) {
     if (!sec || isNaN(sec)) return '0:00'
     const s = Math.round(sec)
@@ -256,6 +455,8 @@ function App() {
   const [error, setError] = useState(null)
   const [selectedChat, setSelectedChat] = useState(null)
   const [menu, setMenu] = useState(null)
+  const [sourceFilter, setSourceFilter] = useState(() => localStorage.getItem('chatSourceFilter') || 'all')
+  const [readFilter, setReadFilter] = useState(() => localStorage.getItem('chatReadFilter') || 'all')
   const [leftWidth, setLeftWidth] = useState(() => {
     const saved = localStorage.getItem('leftWidth')
     if (saved) {
@@ -265,6 +466,24 @@ function App() {
     return Math.round(window.innerWidth * 0.3)
   })
   const [dragging, setDragging] = useState(false)
+
+  const filteredChats = chats.filter((chat) => {
+    const sourceMatches = sourceFilter === 'all' || chat.platform === sourceFilter
+    const hasUnread = (chat.unread_count || 0) > 0
+    const readMatches = readFilter === 'all' || (readFilter === 'unread' ? hasUnread : !hasUnread)
+    return sourceMatches && readMatches
+  })
+
+  const changeSourceFilter = (value) => {
+    setSourceFilter(value)
+    localStorage.setItem('chatSourceFilter', value)
+  }
+
+  const changeReadFilter = (event) => {
+    const value = event.target.value
+    setReadFilter(value)
+    localStorage.setItem('chatReadFilter', value)
+  }
 
   useEffect(() => {
     fetch(`${API_BASE}/auth/me`)
@@ -338,6 +557,13 @@ function App() {
     refreshChats()
   }
 
+  const logout = async () => {
+    await fetch(`${API_BASE}/auth/logout`, { method: 'POST' })
+    setChats([])
+    setSelectedChat(null)
+    setUser(null)
+  }
+
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape') {
@@ -393,11 +619,26 @@ function App() {
       <div className="sidebar" style={{ width: leftWidth }}>
         <div className="sidebar-header">
           <h3 className="sidebar-title">Чаты</h3>
+          <div className="sidebar-filters">
+            <div className="chat-filter source-filter">
+              <span className="chat-filter-label">Источник</span>
+              <SourceFilterSelect value={sourceFilter} onChange={changeSourceFilter} />
+            </div>
+            <label className="chat-filter">
+              <span className="chat-filter-label">Статус</span>
+              <select value={readFilter} onChange={changeReadFilter} aria-label="Фильтр по прочитанности">
+                <option value="all">Все</option>
+                <option value="unread">Непрочитанные</option>
+                <option value="read">Прочитанные</option>
+              </select>
+            </label>
+          </div>
         </div>
         {chats.length === 0 && <p className="sidebar-empty">Пока нет чатов</p>}
+        {chats.length > 0 && filteredChats.length === 0 && <p className="sidebar-empty">Нет чатов по фильтру</p>}
 
         <div className="chat-list">
-          {chats.map((chat) => (
+          {filteredChats.map((chat) => (
             <div
               key={chat.id}
               id={`${chat.platform}_chat_${chat.id}`}
@@ -418,7 +659,7 @@ function App() {
                   </div>
                   <div>
                     <span className="chat-block-time">
-                      {fmtTime(chat.last_message?.created_at)}
+                      {fmtSidebarDateTime(chat.last_message?.created_at)}
                     </span>
                   </div>
                 </div>
@@ -436,17 +677,7 @@ function App() {
           ))}
         </div>
         <div className="sidebar-footer">
-          <PwaControls />
-          <button className="logout-btn" title={`Выйти: ${user.username}`} onClick={async () => {
-            await fetch(`${API_BASE}/auth/logout`, { method: 'POST' })
-            setChats([])
-            setSelectedChat(null)
-            setUser(null)
-          }} aria-label="Выйти">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M10 17l5-5-5-5v3H3v4h7v3zm9-14h-8a2 2 0 0 0-2 2v3h2V5h8v14h-8v-3H9v3a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z" />
-            </svg>
-          </button>
+          <SidebarOptions user={user} onLogout={logout} />
         </div>
       </div>
 
@@ -815,13 +1046,22 @@ function ChatView({ chat, onMessageSent, onBack }) {
   }
 
   const addToYougile = async () => {
+    const yougileTab = window.open('about:blank', '_blank')
+    if (yougileTab) yougileTab.opener = null
     setYougileState({ pending: true, message: '', error: false })
     try {
       const res = await fetch(`${API_BASE}/chats/${chat.id}/yougile`, { method: 'POST' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || 'Ошибка YouGile')
-      setYougileState({ pending: false, message: 'Добавлено в YouGile', error: false })
+      if (data.task?.url && yougileTab) {
+        yougileTab.location.replace(data.task.url)
+        setYougileState({ pending: false, message: 'Добавлено в YouGile', error: false })
+      } else {
+        if (yougileTab) yougileTab.close()
+        setYougileState({ pending: false, message: 'Добавлено. Новая вкладка заблокирована браузером', error: true })
+      }
     } catch (err) {
+      if (yougileTab) yougileTab.close()
       setYougileState({ pending: false, message: err.message, error: true })
     }
   }
@@ -869,9 +1109,12 @@ function ChatView({ chat, onMessageSent, onBack }) {
       </div>
 
       <div ref={listRef} className="message-list" onScroll={onScroll}>
-        {messages.map((m) => (
+        {messages.map((m, index) => (
+          <Fragment key={m.id}>
+          {(index === 0 || messageDateKey(messages[index - 1]?.created_at) !== messageDateKey(m.created_at)) && (
+            <div className="message-date-separator">{fmtMessageDay(m.created_at)}</div>
+          )}
           <div
-            key={m.id}
             id={`msg-${m.id}`}
             className={`message-row ${m.is_from_me ? 'mine' : 'theirs'}${m.id === highlightId ? ' highlight' : ''}`}
             onContextMenu={(e) => {
@@ -929,6 +1172,7 @@ function ChatView({ chat, onMessageSent, onBack }) {
             )}
           </div>
           </div>
+          </Fragment>
         ))}
       </div>
 

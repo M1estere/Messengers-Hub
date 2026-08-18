@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi import Response
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -37,8 +37,18 @@ async def list_chats(db: AsyncSession = Depends(get_db)):
         .correlate(Chat)
         .scalar_subquery()
     )
+    unread_count = (
+        select(func.count(Message.id))
+        .where(
+            Message.chat_id == Chat.id,
+            Message.is_from_me.is_(False),
+            Message.is_read.is_(False),
+        )
+        .correlate(Chat)
+        .scalar_subquery()
+    )
     result = await db.execute(
-        select(Chat, Message)
+        select(Chat, Message, unread_count.label("unread_count"))
         .outerjoin(Message, Message.id == last_message_id)
         .order_by(
             Chat.is_pinned.desc(),
@@ -58,9 +68,10 @@ async def list_chats(db: AsyncSession = Depends(get_db)):
             type=chat.type,
             avatar_url=f"/connect-hub/api/chats/{chat.id}/avatar",
             is_pinned=chat.is_pinned,
+            unread_count=unread_count_value,
             last_message=MessageOut.model_validate(last_message) if last_message else None,
         )
-        for chat, last_message in result.all()
+        for chat, last_message, unread_count_value in result.all()
     ]
 
 

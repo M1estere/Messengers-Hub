@@ -35,6 +35,7 @@ class ChatOut(BaseModel):
     type: str
     avatar_url: str | None = None
     is_pinned: bool = False
+    unread_count: int = 0
     last_message: MessageOut | None = None
 
 
