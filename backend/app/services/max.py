@@ -229,6 +229,24 @@ async def save_max_message(account: Account, message: dict):
     media_external_id = None
     for att in body.get("attachments") or []:
         att_type = (att.get("type") or "").lower()
+        if att_type == "sticker":
+            payload = att.get("payload") or {}
+            image = payload.get("image")
+            media_type = "sticker"
+            media_name = "sticker.webp"
+            url = (
+                payload.get("url")
+                or payload.get("image_url")
+                or payload.get("preview_url")
+                or (image.get("url") if isinstance(image, dict) else image)
+            )
+            media_external_id = url
+            if url:
+                try:
+                    media_data = await max_service.download_url(url)
+                except Exception as exc:
+                    logger.debug("MAX sticker download %s: %s", chat_id, exc)
+            break
         if att_type in ("audio", "voice"):
             payload = att.get("payload") or {}
             media_type = "voice" if att_type == "voice" else "audio"
@@ -322,7 +340,7 @@ async def save_max_message(account: Account, message: dict):
         await send_new_message_push(
             chat.id,
             chat.title or chat.username or "MAX",
-            text or ("Голосовое сообщение" if media_type == "voice" else "Новое сообщение"),
+            text or ("Голосовое сообщение" if media_type == "voice" else "Стикер" if media_type == "sticker" else "Новое сообщение"),
         )
 
 

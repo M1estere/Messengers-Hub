@@ -46,14 +46,14 @@ async def fetch_message_media(message: Message) -> bytes | None:
 
 
 async def media_fetch_loop():
-    """Фоновая докачка недостающих голосовых/аудио."""
+    """Фоновая докачка недостающих голосовых, аудио и стикеров."""
     while True:
         await asyncio.sleep(15)
         try:
             async with async_session() as session:
                 result = await session.execute(
                     select(Message).where(
-                        Message.media_type.in_(("voice", "audio")),
+                        Message.media_type.in_(("voice", "audio", "sticker")),
                         Message.media_external_id.is_not(None),
                         Message.media_data.is_(None),
                     )

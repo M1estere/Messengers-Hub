@@ -170,6 +170,13 @@ async def get_media(
             content_type = "audio/ogg"
         elif message.media_type == "image":
             content_type = "image/jpeg"
+        elif message.media_type == "sticker":
+            if (filename or "").lower().endswith(".webm"):
+                content_type = "video/webm"
+            elif (filename or "").lower().endswith(".tgs"):
+                content_type = "application/gzip"
+            else:
+                content_type = "image/webp"
         else:
             content_type = "application/octet-stream"
     headers = {}

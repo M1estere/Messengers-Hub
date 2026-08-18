@@ -79,7 +79,7 @@ class TelegramService:
         return data["file_path"]
 
     async def download_file(self, file_path: str, attempts: int = 3) -> bytes:
-        url = f"{TELEGRAM_API.format(token=self.token, method='')}file/{file_path}"
+        url = f"https://api.telegram.org/file/bot{self.token}/{file_path}"
         for i in range(attempts):
             try:
                 async with httpx.AsyncClient() as client:
@@ -215,7 +215,28 @@ async def save_message(account: Account, chat_data: dict, message_data: dict, de
         media_external_id = None
         voice = message_data.get("voice")
         audio = message_data.get("audio")
-        if voice or audio:
+        sticker = message_data.get("sticker")
+        if sticker:
+            file_id = sticker.get("file_id")
+            media_name = "sticker.webp"
+            if sticker.get("is_video"):
+                media_name = "sticker.webm"
+            elif sticker.get("is_animated"):
+                thumbnail = sticker.get("thumbnail") or sticker.get("thumb") or {}
+                if thumbnail.get("file_id"):
+                    file_id = thumbnail["file_id"]
+                else:
+                    media_name = "sticker.tgs"
+            media_type = "sticker"
+            media_external_id = file_id
+            if file_id:
+                try:
+                    media_data = await telegram.download_file(
+                        await telegram.get_file_path(file_id)
+                    )
+                except Exception as exc:
+                    logger.debug("TG sticker download %s: %s", chat.id, exc)
+        elif voice or audio:
             item = voice or audio
             file_id = item.get("file_id")
             media_external_id = file_id
@@ -276,7 +297,7 @@ async def save_message(account: Account, chat_data: dict, message_data: dict, de
             await send_new_message_push(
                 chat.id,
                 chat.title or chat.username or "Telegram",
-                text or ("Голосовое сообщение" if media_type == "voice" else "Новое сообщение"),
+                text or ("Голосовое сообщение" if media_type == "voice" else "Стикер" if media_type == "sticker" else "Новое сообщение"),
             )
 
 

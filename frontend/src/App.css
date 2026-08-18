@@ -44,6 +44,7 @@
 
 .sidebar-header {
   padding: 10px;
+  padding-bottom: 20px;
   container-type: inline-size;
 }
 
@@ -321,8 +322,8 @@
 
 .message-search-result {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 8px;
   width: 100%;
   padding: 10px 12px;
   border: 0;
@@ -331,6 +332,34 @@
   color: #fff;
   text-align: start;
   cursor: pointer;
+}
+
+.message-search-result-content {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.message-search-result .avatar-wrap {
+  margin-right: 0;
+}
+
+.message-search-result .avatar-img,
+.message-search-result .avatar-letter {
+  width: 38px;
+  height: 38px;
+}
+
+.message-search-result .avatar-letter {
+  font-size: 15px;
+  line-height: 38px;
+}
+
+.message-search-result .avatar-badge {
+  width: 14px;
+  height: 14px;
 }
 
 .message-search-result:hover {
@@ -361,6 +390,30 @@
   font-size: 10px;
 }
 
+.message-search-result-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.message-search-result-source img,
+.message-search-result-source svg {
+  display: block;
+  width: 12px;
+  height: 12px;
+  object-fit: cover;
+}
+
+.message-search-result-source svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+}
+
+.message-search-result-source img {
+  border-radius: 50%;
+}
+
 .message-search-result-text {
   display: -webkit-box;
   overflow: hidden;
@@ -371,15 +424,23 @@
   -webkit-line-clamp: 2;
 }
 
+.message-search-result-author {
+  color: #e5e7eb;
+  font-weight: 600;
+}
+
 @container (max-width: 150px) {
   .message-search-input {
     padding-inline: 28px 5px;
   }
 
   .message-search-input::placeholder,
-  .message-search-result-date,
-  .message-search-result-source {
+  .message-search-result-date {
     color: transparent;
+  }
+
+  .message-search-result-source-label {
+    display: none;
   }
 }
 
@@ -876,6 +937,37 @@
   border-radius: 6px;
   display: block;
   cursor: zoom-in;
+}
+
+.message-sticker-wrap {
+  display: flex;
+  min-width: 90px;
+  min-height: 90px;
+  align-items: center;
+  justify-content: center;
+}
+
+.message-sticker {
+  display: block;
+  width: auto;
+  max-width: 220px;
+  height: auto;
+  max-height: 220px;
+  object-fit: contain;
+}
+
+.message-sticker-fallback {
+  display: none;
+  min-width: 90px;
+  min-height: 90px;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.message-sticker-fallback.visible {
+  display: flex;
 }
 
 .message-document {
