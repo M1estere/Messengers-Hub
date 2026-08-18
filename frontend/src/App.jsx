@@ -454,6 +454,10 @@ function App() {
   const [chats, setChats] = useState([])
   const [error, setError] = useState(null)
   const [selectedChat, setSelectedChat] = useState(null)
+  const [targetMessageId, setTargetMessageId] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [searchPending, setSearchPending] = useState(false)
   const [menu, setMenu] = useState(null)
   const [sourceFilter, setSourceFilter] = useState(() => localStorage.getItem('chatSourceFilter') || 'all')
   const [readFilter, setReadFilter] = useState(() => localStorage.getItem('chatReadFilter') || 'all')
@@ -492,9 +496,43 @@ function App() {
       .catch(() => setUser(null))
   }, [])
 
-  const selectChat = (chat) => {
+  const selectChat = (chat, messageId = null) => {
     setSelectedChat(chat)
+    setTargetMessageId(messageId)
     localStorage.setItem('selectedChatId', String(chat.id))
+  }
+
+  useEffect(() => {
+    const query = searchQuery.trim()
+    if (query.length < 2) {
+      setSearchResults([])
+      setSearchPending(false)
+      return
+    }
+    const controller = new AbortController()
+    const timer = setTimeout(() => {
+      setSearchPending(true)
+      const platform = sourceFilter === 'all' ? '' : `&platform=${encodeURIComponent(sourceFilter)}`
+      fetch(`${API_BASE}/search/messages?q=${encodeURIComponent(query)}&limit=50${platform}`, { signal: controller.signal })
+        .then((res) => res.ok ? res.json() : Promise.reject(new Error('Ошибка поиска')))
+        .then((data) => setSearchResults(data.items || []))
+        .catch((err) => {
+          if (err.name !== 'AbortError') setSearchResults([])
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setSearchPending(false)
+        })
+    }, 350)
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
+  }, [searchQuery, sourceFilter])
+
+  const openSearchResult = (result) => {
+    const chat = chats.find((item) => item.id === result.chat_id)
+    if (!chat) return
+    selectChat(chat, result.id)
   }
 
   const refreshChats = () => {
@@ -619,6 +657,28 @@ function App() {
       <div className="sidebar" style={{ width: leftWidth }}>
         <div className="sidebar-header">
           <h3 className="sidebar-title">Чаты</h3>
+          <div className="message-search-wrap">
+            <svg className="message-search-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m16.5 16.5 4 4" />
+            </svg>
+            <input
+              className="message-search-input"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  event.stopPropagation()
+                  setSearchQuery('')
+                }
+              }}
+              placeholder="Поиск по сообщениям"
+              aria-label="Поиск по сообщениям"
+            />
+            {searchQuery && (
+              <button className="message-search-clear" onClick={() => setSearchQuery('')} title="Очистить поиск">×</button>
+            )}
+          </div>
           <div className="sidebar-filters">
             <div className="chat-filter source-filter">
               <span className="chat-filter-label">Источник</span>
@@ -634,11 +694,26 @@ function App() {
             </label>
           </div>
         </div>
-        {chats.length === 0 && <p className="sidebar-empty">Пока нет чатов</p>}
-        {chats.length > 0 && filteredChats.length === 0 && <p className="sidebar-empty">Нет чатов по фильтру</p>}
+        {!searchQuery.trim() && chats.length === 0 && <p className="sidebar-empty">Пока нет чатов</p>}
+        {!searchQuery.trim() && chats.length > 0 && filteredChats.length === 0 && <p className="sidebar-empty">Нет чатов по фильтру</p>}
 
         <div className="chat-list">
-          {filteredChats.map((chat) => (
+          {searchQuery.trim().length >= 2 ? (
+            <div className="message-search-results">
+              {searchPending && <div className="message-search-state">Поиск…</div>}
+              {!searchPending && searchResults.length === 0 && <div className="message-search-state">Ничего не найдено</div>}
+              {searchResults.map((result) => (
+                <button key={result.id} className="message-search-result" onClick={() => openSearchResult(result)}>
+                  <span className="message-search-result-top">
+                    <span className="message-search-result-chat">{result.chat_title || result.chat_username || `Чат ${result.chat_id}`}</span>
+                    <span className="message-search-result-date">{result.created_at_iso ? fmtSidebarDateTime(result.created_at_iso) : ''}</span>
+                  </span>
+                  <span className="message-search-result-text">{result.text || mediaLabel(result)}</span>
+                  <span className="message-search-result-source">{result.platform === 'telegram' ? 'Telegram' : result.platform === 'max' ? 'MAX' : 'Сайт'}</span>
+                </button>
+              ))}
+            </div>
+          ) : filteredChats.map((chat) => (
             <div
               key={chat.id}
               id={`${chat.platform}_chat_${chat.id}`}
@@ -702,6 +777,8 @@ function App() {
         {selectedChat && (
           <ChatView
             chat={selectedChat}
+            targetMessageId={targetMessageId}
+            onTargetHandled={() => setTargetMessageId(null)}
             onMessageSent={refreshChats}
             onBack={() => {
               setSelectedChat(null)
@@ -846,7 +923,7 @@ function VoicePlayer({ src, duration }) {
   )
 }
 
-function ChatView({ chat, onMessageSent, onBack }) {
+function ChatView({ chat, targetMessageId, onTargetHandled, onMessageSent, onBack }) {
   const [messages, setMessages] = useState([])
   const [text, setText] = useState('')
   const [file, setFile] = useState(null)
@@ -1011,6 +1088,15 @@ function ChatView({ chat, onMessageSent, onBack }) {
     if (highlightTimer.current) clearTimeout(highlightTimer.current)
     highlightTimer.current = setTimeout(() => setHighlightId(null), 2000)
   }
+
+  useEffect(() => {
+    if (!targetMessageId || messages.length === 0) return
+    const exists = messages.some((message) => message.id === targetMessageId)
+    if (!exists) return
+    stickToBottom.current = false
+    requestAnimationFrame(() => scrollToMessage(targetMessageId))
+    onTargetHandled && onTargetHandled()
+  }, [messages, targetMessageId])
 
   const downloadMedia = (msg) => {
     if (!msg?.media_url) return

@@ -1,0 +1,7 @@
+venv/
+__pycache__/
+*.pyc
+.env
+connect-hub.db
+.idea/
+.git/

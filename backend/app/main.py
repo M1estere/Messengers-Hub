@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import init_db
-from app.routers import webhooks, chats, messages, ws, auth, push, widget
+from app.routers import webhooks, chats, messages, ws, auth, push, widget, search
 from app.models import Account, Platform
 from app.models.user import User
 from app.services.auth import hash_password
@@ -15,6 +15,7 @@ from sqlalchemy import select
 from app.services.max import max_poller
 from app.services.media import media_fetch_loop
 from app.services.telegram import telegram_poller, avatar_fetch_loop
+from app.services.search import search_sync_loop
 
 logging.basicConfig(level=logging.INFO)
 
@@ -35,11 +36,13 @@ async def lifespan(app: FastAPI):
     max_poller_task = asyncio.create_task(max_poller())
     avatar_loader = asyncio.create_task(avatar_fetch_loop())
     media_loader = asyncio.create_task(media_fetch_loop())
+    search_sync = asyncio.create_task(search_sync_loop())
     yield
     poller.cancel()
     max_poller_task.cancel()
     avatar_loader.cancel()
     media_loader.cancel()
+    search_sync.cancel()
 
 
 app = FastAPI(
@@ -64,6 +67,7 @@ app.include_router(push.router)
 app.include_router(widget.router)
 app.include_router(chats.router)
 app.include_router(messages.router)
+app.include_router(search.router)
 app.include_router(ws.router)
 
 

@@ -52,7 +52,8 @@ async def list_chats(db: AsyncSession = Depends(get_db)):
         .outerjoin(Message, Message.id == last_message_id)
         .order_by(
             Chat.is_pinned.desc(),
-            Message.created_at.desc().nullslast(),
+            Message.created_at.is_(None),
+            Message.created_at.desc(),
             Chat.created_at.desc(),
         )
     )

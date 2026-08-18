@@ -11,7 +11,7 @@ class PushSubscription(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(Integer, index=True)
-    endpoint: Mapped[str] = mapped_column(Text, unique=True, index=True)
+    endpoint: Mapped[str] = mapped_column(String(700), unique=True, index=True)
     p256dh: Mapped[str] = mapped_column(Text)
     auth: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

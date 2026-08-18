@@ -15,6 +15,7 @@ from app.services.max import max_service
 from app.services.media import fetch_message_media
 from app.services.telegram import telegram
 from app.services.auth import require_user
+from app.services.search import delete_indexed_message
 
 router = APIRouter(prefix="/messages", tags=["messages"], dependencies=[Depends(require_user)])
 
@@ -148,6 +149,7 @@ async def delete_message(message_id: int, db: AsyncSession = Depends(get_db)):
             pass
     await db.delete(message)
     await db.commit()
+    await delete_indexed_message(message_id)
     return {"ok": True}
 
 

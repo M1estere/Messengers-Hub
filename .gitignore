@@ -1,5 +1,9 @@
 .env
+.docker.env
 backend/app/config.py
+backend/vapid_private.pem
+meili_data/
+data/
 .venv/
 venv/
 __pycache__/

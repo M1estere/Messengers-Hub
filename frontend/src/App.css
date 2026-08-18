@@ -48,7 +48,7 @@
 }
 
 .sidebar-title {
-  margin: 5px;
+  margin: 5px 0
 }
 
 .sidebar-filters {
@@ -251,6 +251,136 @@
 .sidebar-empty {
   padding: 0 15px;
   color: #888;
+}
+
+.message-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.message-search-icon {
+  position: absolute;
+  left: 9px;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: #8d96a3;
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+.message-search-input {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 6px 30px 6px 32px;
+  border: 1px solid #454b55;
+  border-radius: 8px;
+  outline: none;
+  background: #1d2026;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+}
+
+.message-search-input:focus {
+  border-color: #4da3ff;
+  box-shadow: 0 0 0 2px rgba(77, 163, 255, .12);
+}
+
+.message-search-clear {
+  position: absolute;
+  right: 5px;
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #9ca3af;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.message-search-results {
+  display: flex;
+  flex-direction: column;
+}
+
+.message-search-state {
+  padding: 18px 12px;
+  color: #8d96a3;
+  font-size: 13px;
+  text-align: center;
+}
+
+.message-search-result {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, .07);
+  background: transparent;
+  color: #fff;
+  text-align: start;
+  cursor: pointer;
+}
+
+.message-search-result:hover {
+  background: rgba(77, 163, 255, .12);
+}
+
+.message-search-result-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.message-search-result-chat {
+  overflow: hidden;
+  color: #e5e7eb;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-search-result-date,
+.message-search-result-source {
+  flex: 0 0 auto;
+  color: #7f8997;
+  font-size: 10px;
+}
+
+.message-search-result-text {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #b7bec8;
+  font-size: 12px;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+@container (max-width: 150px) {
+  .message-search-input {
+    padding-inline: 28px 5px;
+  }
+
+  .message-search-input::placeholder,
+  .message-search-result-date,
+  .message-search-result-source {
+    color: transparent;
+  }
 }
 
 .chat-list {

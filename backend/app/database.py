@@ -81,6 +81,8 @@ async def _backfill_max_user_ids():
 
 
 async def _migrate_missing_columns():
+    if engine.dialect.name != "sqlite":
+        return
     async with engine.begin() as conn:
         cols = await conn.exec_driver_sql("PRAGMA table_info(accounts)")
         existing = {row[1] for row in cols}

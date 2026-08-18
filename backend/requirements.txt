@@ -8,3 +8,5 @@ httpx==0.28.1
 python-telegram-bot==21.9
 websockets==14.1
 pywebpush==2.3.0
+python-multipart==0.0.32
+asyncmy==0.2.10
