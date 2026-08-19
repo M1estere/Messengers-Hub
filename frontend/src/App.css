@@ -21,11 +21,10 @@
 }
 
 .divider {
-  width: 6px;
+  width: 5px;
   flex-shrink: 0;
-  cursor: col-resize;
-  background: #fff;
-  border-left: 1px solid darkgray;
+  cursor: e-resize;
+  background: #535353;
 }
 
 .divider:hover,
