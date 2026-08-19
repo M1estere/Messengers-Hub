@@ -430,15 +430,7 @@ function App() {
               }}
             />
           ) : (
-            <div className={'no-selected-chat'} style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-              width: '100%',
-              color: '#999',
-              fontSize: '18px'
-            }}>
+            <div className={'no-selected-chat'}>
               Выберите чат, чтобы начать общение
             </div>
           )}
