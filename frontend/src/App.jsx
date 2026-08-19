@@ -430,7 +430,7 @@ function App() {
               }}
             />
           ) : (
-            <div style={{
+            <div className={'no-selected-chat'} style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
