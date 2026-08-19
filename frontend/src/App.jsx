@@ -247,7 +247,7 @@ function App() {
   const onDividerDown = (e) => {
     e.preventDefault()
     setDragging(true)
-    document.body.style.cursor = 'col-resize'
+    document.body.style.cursor = 'e-resize'
     document.body.style.userSelect = 'none'
     const move = (ev) => {
       const w = Math.max(
